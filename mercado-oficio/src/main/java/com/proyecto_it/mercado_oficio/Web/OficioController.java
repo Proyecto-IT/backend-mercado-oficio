@@ -3,6 +3,7 @@ package com.proyecto_it.mercado_oficio.Infraestructure.Controller;
 import com.proyecto_it.mercado_oficio.Domain.Model.Oficio;
 import com.proyecto_it.mercado_oficio.Domain.Service.Oficio.OficioService;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Oficio.OficioCreateRequest;
+import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Oficio.OficioUpdateRequest;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Oficio.OficioResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,14 +31,7 @@ public class OficioController {
         List<OficioResponse> response = oficioService.listarTodos().stream()
                 .map(o -> new OficioResponse(o.getId(), o.getNombre()))
                 .toList();
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/{id}")
-    public ResponseEntity<OficioResponse> buscarPorId(@PathVariable Integer id) {
-        return oficioService.buscarPorId(id)
-                .map(o -> ResponseEntity.ok(new OficioResponse(o.getId(), o.getNombre())))
-                .orElse(ResponseEntity.notFound().build());
+        return ResponseEntity.ok("Oficios listados correctamente.");
     }
 
     // para ver coincidencias
@@ -46,19 +40,19 @@ public class OficioController {
         List<OficioResponse> response = oficioService.buscarPorNombre(nombre).stream()
                 .map(o -> new OficioResponse(o.getId(), o.getNombre()))
                 .toList();
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok("Coincidencia buscada correctamente.");
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<OficioResponse> actualizarOficio(@PathVariable Integer id, @Valid @RequestBody OficioUpdateRequest request) {
-        Oficio oficio = new Oficio(id, request.getNombre());
+    @PutMapping("/upd")
+    public ResponseEntity<OficioResponse> actualizarOficio(@Valid @RequestBody OficioUpdateRequest request) {
+        Oficio oficio = new Oficio(request.getId(), request.getNombre());
         Oficio actualizado = oficioService.actualizarOficio(oficio);
         return ResponseEntity.ok(new OficioResponse(actualizado.getId(), actualizado.getNombre()));
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminarOficio(@PathVariable Integer id) {
+    @DeleteMapping("/borrar")
+    public ResponseEntity<Void> eliminarOficio(@RequestParam Integer id) {
         oficioService.eliminarOficio(id);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok("Oficio eliminado correctamente.");
     }
 }

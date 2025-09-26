@@ -34,7 +34,7 @@ public class OficioRepositoryImpl implements OficioRepository {
     }
 
     @Override
-    public Optional<Oficio> buscarPorId(Long id) {
+    public Optional<Oficio> buscarPorId(Integer id) {
         return jpaRepository.findById(id).map(mapper::toDomain);
     }
 
@@ -44,7 +44,7 @@ public class OficioRepositoryImpl implements OficioRepository {
     }
 
     @Override
-    public void eliminar(Long id) {
+    public void eliminar(Integer id) {
         jpaRepository.deleteById(id);
     }
 }

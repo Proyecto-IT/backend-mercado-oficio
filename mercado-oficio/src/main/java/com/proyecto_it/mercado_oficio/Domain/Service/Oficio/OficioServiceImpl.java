@@ -30,7 +30,7 @@ public class OficioServiceImpl implements OficioService {
     }
 
     @Override
-    public Optional<Oficio> buscarPorId(Long id) {
+    public Optional<Oficio> buscarPorId(Integer id) {
         return oficioRepository.buscarPorId(id);
     }
 
@@ -40,7 +40,7 @@ public class OficioServiceImpl implements OficioService {
     }
 
     @Override
-    public void eliminarOficio(Long id) {
+    public void eliminarOficio(Integer id) {
         oficioRepository.eliminar(id);
     }
 }
