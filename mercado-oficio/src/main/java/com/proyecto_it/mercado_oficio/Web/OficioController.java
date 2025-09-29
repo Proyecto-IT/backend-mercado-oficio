@@ -31,7 +31,7 @@ public class OficioController {
         List<OficioResponse> response = oficioService.listarTodos().stream()
                 .map(o -> new OficioResponse(o.getId(), o.getNombre()))
                 .toList();
-        return ResponseEntity.ok("Oficios listados correctamente.");
+        return ResponseEntity.ok(response);
     }
 
     // para ver coincidencias
@@ -40,7 +40,7 @@ public class OficioController {
         List<OficioResponse> response = oficioService.buscarPorNombre(nombre).stream()
                 .map(o -> new OficioResponse(o.getId(), o.getNombre()))
                 .toList();
-        return ResponseEntity.ok("Coincidencia buscada correctamente.");
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/upd")
@@ -53,6 +53,6 @@ public class OficioController {
     @DeleteMapping("/borrar")
     public ResponseEntity<Void> eliminarOficio(@RequestParam Integer id) {
         oficioService.eliminarOficio(id);
-        return ResponseEntity.ok("Oficio eliminado correctamente.");
+        return ResponseEntity.noContent().build();
     }
 }

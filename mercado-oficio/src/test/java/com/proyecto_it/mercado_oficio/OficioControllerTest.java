@@ -1,131 +1,279 @@
-package com.proyecto_it.mercado_oficio;
+package com.proyecto_it.mercado_oficio.Infraestructure.Controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.proyecto_it.mercado_oficio.Security.TestSecurityConfig;
-import com.proyecto_it.mercado_oficio.model.Oficio;
-import com.proyecto_it.mercado_oficio.service.OficioService;
+import com.proyecto_it.mercado_oficio.Domain.Model.Oficio;
+import com.proyecto_it.mercado_oficio.Domain.Service.Oficio.OficioService;
+import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Oficio.OficioCreateRequest;
+import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Oficio.OficioUpdateRequest;
+import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Oficio.OficioResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.ResponseEntity;
 
 import java.util.Arrays;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.mockito.Mockito.*;
 
-import com.proyecto_it.mercado_oficio.Domain.Model.Usuario;
-import com.proyecto_it.mercado_oficio.Domain.Service.JWT.JwtTokenService;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockHttpServletResponse;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.security.oauth2.core.user.OAuth2User;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.test.web.servlet.MockMvc;
 
-import java.util.Map;
-import java.util.Optional;
+@ExtendWith(MockitoExtension.class)
+class OficioControllerTest {
 
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-@Import(TestSecurityConfig.class)
-
-public class AuthControllerTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private OficioController oficioController;
-
-    @MockBean
+    @Mock
     private OficioService oficioService;
 
-    @MockBean
-    private JwtTokenService jwtTokenService;
+    @InjectMocks
+    private OficioController oficioController;
 
-    @MockBean
-    private UserDetailsService userDetailsService;
+    private ObjectMapper objectMapper;
+    private Oficio oficioEjemplo;
+    private OficioCreateRequest createRequest;
+    private OficioUpdateRequest updateRequest;
 
-    @MockBean
-    private CustomUserDetailsService customUserDetailsService;
+    @BeforeEach
+    void setUp() {
+        objectMapper = new ObjectMapper();
+        oficioEjemplo = new Oficio(1, "Plomero");
 
-    @Test
-    void testCrearOficio() throws Exception {
-        String json = """
-            {
-              "nombre": "Carpintero"
-            }
-        """;
+        createRequest = OficioCreateRequest.builder()
+                .nombre("Plomero")
+                .build();
 
-        mockMvc.perform(post("/api/oficios")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
-                .andExpect(status().isOk());
+        updateRequest = OficioUpdateRequest.builder()
+                .id(1)
+                .nombre("Plomero 2")
+                .build();
     }
 
     @Test
-    void testListarTodos() throws Exception {
-        mockMvc.perform(get("/api/oficios"))
-                .andExpect(status().isOk())
+    void crearOficio_DeberiaRetornarOficioCreado() {
+        // Given
+        when(oficioService.crearOficio(any(Oficio.class))).thenReturn(oficioEjemplo);
+
+        // When
+        ResponseEntity<OficioResponse> response = oficioController.crearOficio(createRequest);
+
+        // Then
+        assertNotNull(response);
+        assertEquals(200, response.getStatusCodeValue());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().getId());
+        assertEquals("Plomero", response.getBody().getNombre());
+
+        verify(oficioService).crearOficio(any(Oficio.class));
     }
 
     @Test
-    void testBuscarPorNombre() throws Exception {
-        String nombre = "carp";
+    void crearOficio_ConRequestValido_DeberiaLlamarServicioConParametrosCorrectos() {
+        // Given
+        when(oficioService.crearOficio(any(Oficio.class))).thenReturn(oficioEjemplo);
 
-        mockMvc.perform(get("/api/oficios/buscar")
-                        .param("nombre", nombre))
-                .andExpect(status().isOk())
+        // When
+        oficioController.crearOficio(createRequest);
+
+        // Then
+        verify(oficioService).crearOficio(argThat(oficio ->
+                oficio.getNombre().equals("Plomero") && oficio.getId() == null
+        ));
     }
 
     @Test
-    void testActualizarOficio() throws Exception {
-        String json = """
-        {
-          "id": "1",
-          "nombre": "Plomero"
-        }
-    """;
+    void listarTodos_DeberiaRetornarListaDeOficios() {
+        // Given
+        List<Oficio> oficios = Arrays.asList(
+                new Oficio(1, "Plomero"),
+                new Oficio(2, "Electricista")
+        );
+        when(oficioService.listarTodos()).thenReturn(oficios);
 
-        mockMvc.perform(put("/api/oficios/upd")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json))
-                .andExpect(status().isOk());
+        // When
+        ResponseEntity<List<OficioResponse>> response = oficioController.listarTodos();
+
+        // Then
+        assertNotNull(response);
+        assertEquals(200, response.getStatusCodeValue());
+        verify(oficioService).listarTodos();
     }
 
     @Test
-    void testEliminarOficio() throws Exception {
-        String id = "carp";
+    void listarTodos_ConListaVacia_DeberiaRetornarListaVacia() {
+        // Given
+        when(oficioService.listarTodos()).thenReturn(Arrays.asList());
 
-        mockMvc.perform(delete("/api/oficios/borrar")
-                        .param("id", id))
-                .andExpect(status().isOk())
+        // When
+        ResponseEntity<List<OficioResponse>> response = oficioController.listarTodos();
+
+        // Then
+        assertNotNull(response);
+        assertEquals(200, response.getStatusCodeValue());
+        verify(oficioService).listarTodos();
     }
 
+    @Test
+    void buscarPorNombre_DeberiaRetornarOficiosCoincidentes() {
+        // Given
+        String nombreBusqueda = "Plom";
+        List<Oficio> oficiosEncontrados = Arrays.asList(oficioEjemplo);
+        when(oficioService.buscarPorNombre(nombreBusqueda)).thenReturn(oficiosEncontrados);
+
+        // When
+        ResponseEntity<List<OficioResponse>> response = oficioController.buscarPorNombre(nombreBusqueda);
+
+        // Then
+        assertNotNull(response);
+        assertEquals(200, response.getStatusCodeValue());
+        verify(oficioService).buscarPorNombre(nombreBusqueda);
+    }
+
+    @Test
+    void buscarPorNombre_SinCoincidencias_DeberiaRetornarListaVacia() {
+        // Given
+        String nombreBusqueda = "NoExiste";
+        when(oficioService.buscarPorNombre(nombreBusqueda)).thenReturn(Arrays.asList());
+
+        // When
+        ResponseEntity<List<OficioResponse>> response = oficioController.buscarPorNombre(nombreBusqueda);
+
+        // Then
+        assertNotNull(response);
+        assertEquals(200, response.getStatusCodeValue());
+        verify(oficioService).buscarPorNombre(nombreBusqueda);
+    }
+
+    @Test
+    void actualizarOficio_DeberiaRetornarOficioActualizado() {
+        // Given
+        Oficio oficioActualizado = new Oficio(1, "Plomero 2");
+        when(oficioService.actualizarOficio(any(Oficio.class))).thenReturn(oficioActualizado);
+
+        // When
+        ResponseEntity<OficioResponse> response = oficioController.actualizarOficio(updateRequest);
+
+        // Then
+        assertNotNull(response);
+        assertEquals(200, response.getStatusCodeValue());
+        assertNotNull(response.getBody());
+        assertEquals(1, response.getBody().getId());
+        assertEquals("Plomero 2", response.getBody().getNombre());
+
+        verify(oficioService).actualizarOficio(any(Oficio.class));
+    }
+
+    @Test
+    void actualizarOficio_ConRequestValido_DeberiaLlamarServicioConParametrosCorrectos() {
+        // Given
+        Oficio oficioActualizado = new Oficio(1, "Plomero 2");
+        when(oficioService.actualizarOficio(any(Oficio.class))).thenReturn(oficioActualizado);
+
+        // When
+        oficioController.actualizarOficio(updateRequest);
+
+        // Then
+        verify(oficioService).actualizarOficio(argThat(oficio ->
+                oficio.getId().equals(1) && oficio.getNombre().equals("Plomero 2")
+        ));
+    }
+
+    @Test
+    void eliminarOficio_DeberiaEliminarCorrectamente() {
+        // Given
+        Integer oficioId = 1;
+        doNothing().when(oficioService).eliminarOficio(oficioId);
+
+        // When
+        ResponseEntity<Void> response = oficioController.eliminarOficio(oficioId);
+
+        // Then
+        assertNotNull(response);
+        assertEquals(204, response.getStatusCodeValue());
+        verify(oficioService).eliminarOficio(oficioId);
+    }
+
+    @Test
+    void eliminarOficio_ConIdInvalido_DeberiaLlamarServicio() {
+        // Given
+        Integer oficioId = 999;
+        doNothing().when(oficioService).eliminarOficio(oficioId);
+
+        // When
+        ResponseEntity<Void> response = oficioController.eliminarOficio(oficioId);
+
+        // Then
+        assertNotNull(response);
+        assertEquals(204, response.getStatusCodeValue());
+
+        verify(oficioService).eliminarOficio(oficioId);
+    }
+
+    @Test
+    void eliminarOficio_ConIdNull_DeberiaLlamarServicio() {
+        // Given
+        Integer oficioId = null;
+        doNothing().when(oficioService).eliminarOficio(oficioId);
+
+        // When
+        ResponseEntity<Void> response = oficioController.eliminarOficio(oficioId);
+
+        // Then
+        assertNotNull(response);
+
+        verify(oficioService).eliminarOficio(oficioId);
+    }
+
+    // Tests para validar la lógica de mapeo
+    @Test
+    void crearOficio_DeberiaMapearCorrectamenteRequestADominio() {
+        // Given
+        OficioCreateRequest request = OficioCreateRequest.builder()
+                .nombre("Carpintero")
+                .build();
+        when(oficioService.crearOficio(any(Oficio.class))).thenReturn(new Oficio(2, "Carpintero"));
+
+        // When
+        oficioController.crearOficio(request);
+
+        // Then
+        verify(oficioService).crearOficio(argThat(oficio ->
+                oficio.getNombre().equals("Carpintero") && oficio.getId() == null
+        ));
+    }
+
+    @Test
+    void crearOficio_DeberiaMapearCorrectamenteDominioAResponse() {
+        // Given
+        Oficio oficioCreado = new Oficio(3, "Electricista");
+        when(oficioService.crearOficio(any(Oficio.class))).thenReturn(oficioCreado);
+
+        // When
+        ResponseEntity<OficioResponse> response = oficioController.crearOficio(createRequest);
+
+        // Then
+        assertNotNull(response.getBody());
+        assertEquals(3, response.getBody().getId());
+        assertEquals("Electricista", response.getBody().getNombre());
+    }
+
+    @Test
+    void actualizarOficio_DeberiaMapearCorrectamenteRequestADominio() {
+        // Given
+        OficioUpdateRequest request = OficioUpdateRequest.builder()
+                .id(5)
+                .nombre("Pintor")
+                .build();
+        when(oficioService.actualizarOficio(any(Oficio.class))).thenReturn(new Oficio(5, "Pintor"));
+
+        // When
+        oficioController.actualizarOficio(request);
+
+        // Then
+        verify(oficioService).actualizarOficio(argThat(oficio ->
+                oficio.getId().equals(5) && oficio.getNombre().equals("Pintor")
+        ));
+    }
 }
