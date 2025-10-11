@@ -8,6 +8,6 @@ import java.util.Optional;
 public interface RefreshTokenRepository {
     RefreshToken guardar(RefreshToken token);
     Optional<RefreshToken> buscarPorTokenYEstado(String token, String estado);
-    void expirarTokensPorUsuario(Integer usuarioId);
+    int expirarTokensPorUsuario(Integer usuarioId);
     List<RefreshToken> buscarPorUsuarioYEstado(Integer usuarioId, String estado);
 }

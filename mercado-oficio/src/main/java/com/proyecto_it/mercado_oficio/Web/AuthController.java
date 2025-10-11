@@ -4,6 +4,8 @@ package com.proyecto_it.mercado_oficio.Web;
 
 import com.proyecto_it.mercado_oficio.Domain.Model.TokenVerificacion;
 import com.proyecto_it.mercado_oficio.Domain.Model.Usuario;
+import com.proyecto_it.mercado_oficio.Domain.Repository.RefreshTokenRepository;
+import com.proyecto_it.mercado_oficio.Domain.Service.Auth.AuthService;
 import com.proyecto_it.mercado_oficio.Domain.Service.Email.EmailService;
 import com.proyecto_it.mercado_oficio.Domain.Service.JWT.JwtTokenService;
 import com.proyecto_it.mercado_oficio.Domain.Service.JWT.RefreshTokenExpiredException;
@@ -20,15 +22,20 @@ import com.proyecto_it.mercado_oficio.Security.SecurityConfig.JWT.JwtService;
 import com.proyecto_it.mercado_oficio.Security.SecurityConfig.JWT.JwtSpecialTokenService;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.persistence.PessimisticLockException;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -38,6 +45,7 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 
@@ -53,13 +61,15 @@ public class AuthController {
     private final TokenVerificacionService tokenService;
     private final EmailService emailService;
     private final JwtTokenService jwtTokenService;
-
+    private final AuthService authService;
+    private final RefreshTokenRepository refreshTokenRepository;
     // === Infrastructure Services ===
     private final AuthenticationManager authManager;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final JwtSpecialTokenService jwtSpecialTokenService;
     private final CustomUserDetailsService userDetailsService;
+
 
     // === Mappers ===
     private final UsuarioMapper usuarioMapper;
@@ -123,25 +133,27 @@ public class AuthController {
         }
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<?> getUserInfo(Authentication authentication) {
+        return ResponseEntity.ok(authService.obtenerInfoUsuario(authentication));
+    }
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody @Valid AuthRequest request) {
         log.info("Intento de login para gmail={}", request.getGmail());
         try {
             Optional<Usuario> optUser = usuarioService.buscarPorGmail(request.getGmail());
             if (optUser.isEmpty()) {
-                log.warn("Login fallido, usuario no encontrado={}", request.getGmail());
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
             }
 
             Usuario usuario = optUser.get();
 
             if (!usuario.isVerificado()) {
-                log.warn("Login fallido, usuario no verificado={}", request.getGmail());
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Usuario no verificado");
             }
 
             if (!usuario.puedeUsarLocal()) {
-                log.warn("Login fallido, usuario debe usar Google login={}", request.getGmail());
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Usa el login con Google para este usuario");
             }
 
@@ -149,17 +161,26 @@ public class AuthController {
             var auth = authManager.authenticate(authToken);
             var userDetails = (UserDetails) auth.getPrincipal();
 
-            AuthResponse response = jwtTokenService.generarTokens(userDetails);
-            log.info("Login exitoso, gmail={}, usuarioId={}", request.getGmail(), response.getUsuarioId());
+            AuthResponse tokens = jwtTokenService.generarTokens(userDetails);
+            log.info("Login exitoso, gmail={}, usuarioId={}", request.getGmail(), tokens.getUsuarioId());
 
-            return ResponseEntity.ok(Map.of(
-                    "accessToken", response.getAccessToken(),
-                    "refreshToken", response.getRefreshToken(),
-                    "usuarioId", response.getUsuarioId()
-            ));
+            // 🔥 Cookie para DESARROLLO LOCAL
+            ResponseCookie cookie = ResponseCookie.from("refreshToken", tokens.getRefreshToken())
+                    .httpOnly(true)
+                    .secure(false)       // 🔥 false en desarrollo
+                    .sameSite("Lax")     // 🔥 Lax en desarrollo (NO None)
+                    .path("/")
+                    .maxAge(7 * 24 * 60 * 60)
+                    .build();
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .body(Map.of(
+                            "accessToken", tokens.getAccessToken(),
+                            "usuarioId", tokens.getUsuarioId()
+                    ));
 
         } catch (AuthenticationException e) {
-            log.warn("Login fallido por credenciales inválidas, gmail={}: {}", request.getGmail(), e.getMessage());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
         } catch (Exception e) {
             log.error("Error inesperado en login: ", e);
@@ -168,9 +189,47 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<?> refreshToken(@RequestBody @Valid RefreshTokenRequest request) {
-        log.info("Refresh token solicitado");
-        return refreshTokenWithRetry(request, 0);
+    public ResponseEntity<?> refreshToken(HttpServletRequest request) {
+        log.info("🔄 Refresh token solicitado");
+
+        try {
+            String refreshToken = Arrays.stream(Optional.ofNullable(request.getCookies()).orElse(new Cookie[0]))
+                    .filter(c -> c.getName().equals("refreshToken"))
+                    .map(Cookie::getValue)
+                    .findFirst()
+                    .orElseThrow(() -> {
+                        log.warn("❌ No se encontró cookie refreshToken");
+                        return new RuntimeException("No se encontró el refresh token");
+                    });
+
+            log.info("🔄 Refresh token encontrado en cookie: {}...", refreshToken.substring(0, 20));
+
+            // 🔥 DEBUG: Log completo del token (temporal)
+            log.info("🔍 TOKEN COMPLETO DE COOKIE: {}", refreshToken);
+
+            AuthResponse newTokens = jwtTokenService.refrescarTokens(refreshToken);
+
+            // 🔥 DEBUG: Log del nuevo token generado
+            log.info("🔍 NUEVO TOKEN GENERADO: {}", newTokens.getRefreshToken());
+
+            ResponseCookie cookie = ResponseCookie.from("refreshToken", newTokens.getRefreshToken())
+                    .httpOnly(true)
+                    .secure(false)
+                    .sameSite("Lax")
+                    .path("/")
+                    .maxAge(7 * 24 * 60 * 60)
+                    .build();
+
+            log.info("✅ Refresh exitoso, enviando nuevo accessToken");
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .body(Map.of("accessToken", newTokens.getAccessToken()));
+
+        } catch (Exception e) {
+            log.error("❌ Error al refrescar token: ", e);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token inválido o expirado");
+        }
     }
 
     private ResponseEntity<?> refreshTokenWithRetry(RefreshTokenRequest request, int attempt) {
@@ -217,6 +276,70 @@ public class AuthController {
                 || message.contains("concurrent") || e instanceof OptimisticLockException || e instanceof PessimisticLockException;
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(HttpServletRequest request, Authentication authentication) {
+        try {
+            // 1. Intentar obtener el refresh token de la cookie
+            Optional<String> refreshTokenOpt = Arrays.stream(
+                            Optional.ofNullable(request.getCookies()).orElse(new Cookie[0]))
+                    .filter(c -> c.getName().equals("refreshToken"))
+                    .map(Cookie::getValue)
+                    .findFirst();
+
+            // 2. Si hay refresh token, invalidarlo en la BD
+            if (refreshTokenOpt.isPresent()) {
+                String refreshToken = refreshTokenOpt.get();
+                log.info("🔍 Invalidando refresh token de cookie: {}...",
+                        refreshToken.substring(0, Math.min(20, refreshToken.length())));
+
+                try {
+                    // Buscar y expirar el token específico
+                    jwtTokenService.invalidarRefreshToken(refreshToken);
+                    log.info("✅ Refresh token invalidado en BD");
+                } catch (Exception e) {
+                    log.warn("⚠️ No se pudo invalidar el refresh token en BD: {}", e.getMessage());
+                }
+            }
+
+            // 3. Si hay usuario autenticado, expirar todos sus tokens
+            if (authentication != null && authentication.isAuthenticated()) {
+                String username = authentication.getName();
+                log.info("🚪 Logout para usuario: {}", username);
+
+                try {
+                    Usuario usuario = usuarioService.buscarPorGmail(username).orElse(null);
+                    if (usuario != null) {
+                        // Expirar todos los tokens del usuario
+                        refreshTokenRepository.expirarTokensPorUsuario(usuario.getId());
+                        log.info("✅ Todos los tokens del usuario {} expirados", usuario.getId());
+                    }
+                } catch (Exception e) {
+                    log.warn("⚠️ No se pudieron expirar todos los tokens: {}", e.getMessage());
+                }
+            }
+
+            // 4. Siempre invalidar la cookie
+            ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
+                    .httpOnly(true)
+                    .secure(false)
+                    .sameSite("Lax")
+                    .path("/")
+                    .maxAge(0) // Expira inmediatamente
+                    .build();
+
+            log.info("✅ Logout exitoso");
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .body(Map.of("message", "Logout exitoso"));
+
+        } catch (Exception e) {
+            log.error("❌ Error en logout: ", e);
+            // Responder OK de todos modos para que el frontend pueda limpiar su estado
+            return ResponseEntity.ok()
+                    .body(Map.of("message", "Logout exitoso (con errores menores)"));
+        }
+    }
     @PostMapping("/reset-password-request")
     public ResponseEntity<?> solicitarRestablecerPassword(@RequestBody @Valid EmailRequest request) {
         log.info("Solicitud de restablecimiento de password para gmail={}", request.getGmail());

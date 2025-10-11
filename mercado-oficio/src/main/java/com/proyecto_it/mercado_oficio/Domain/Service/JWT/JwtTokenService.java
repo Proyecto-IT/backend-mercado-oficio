@@ -6,4 +6,5 @@ import org.springframework.security.core.userdetails.UserDetails;
 public interface JwtTokenService {
     AuthResponse generarTokens(UserDetails userDetails);
     AuthResponse refrescarTokens(String refreshToken);
+    void invalidarRefreshToken(String refreshToken);
 }

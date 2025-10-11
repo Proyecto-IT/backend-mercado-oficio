@@ -77,6 +77,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authToken);
 
                     logger.debug("Usuario autenticado: {}", username);
+                    logger.debug("Authorization header: {}", authHeader);
                 } else {
                     logger.warn("Token inválido para usuario: {}", username);
                 }

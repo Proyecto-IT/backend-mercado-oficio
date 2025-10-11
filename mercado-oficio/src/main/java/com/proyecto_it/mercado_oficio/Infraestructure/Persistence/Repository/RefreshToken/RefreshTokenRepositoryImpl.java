@@ -9,10 +9,10 @@ import com.proyecto_it.mercado_oficio.Mapper.RefreshToken.RefreshTokenMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
-
 @Repository
 @RequiredArgsConstructor
 @Slf4j
@@ -20,57 +20,66 @@ public class RefreshTokenRepositoryImpl implements RefreshTokenRepository {
 
     private final JpaRefreshTokenRepository jpaRepository;
     private final RefreshTokenMapper mapper;
-    private final JpaUsuarioRepository usuarioRepository;
 
     @Override
+    @Transactional
     public RefreshToken guardar(RefreshToken token) {
-        log.info("Guardando refresh token para usuarioId={}", token.getUsuarioId());
+        log.info("💾 Guardando refresh token para usuarioId={}", token.getUsuarioId());
+
+        // 🔥 DEBUG: Log del token que se guarda
+        log.info("🔍 TOKEN A GUARDAR: {}", token.getToken());
 
         RefreshTokenEntity entity = mapper.toEntity(token);
-
-        // Establecer referencia al usuario si no existe
-        if (entity.getUsuario() == null && token.getUsuarioId() != null) {
-            UsuarioEntity usuarioRef = usuarioRepository.getReferenceById(token.getUsuarioId());
-            entity.setUsuario(usuarioRef);
-            log.debug("Referencia al usuario establecida para token: {}", token.getUsuarioId());
-        }
-
         RefreshTokenEntity savedEntity = jpaRepository.save(entity);
-        log.info("Refresh token guardado con id={}", savedEntity.getId());
+
+        log.info("✅ Refresh token guardado con id={}", savedEntity.getId());
+        log.info("🔍 TOKEN GUARDADO EN BD: {}", savedEntity.getToken());
+
         return mapper.toDomain(savedEntity);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<RefreshToken> buscarPorTokenYEstado(String token, String estado) {
-        log.info("Buscando refresh token '{}' con estado '{}'", token, estado);
+        log.info("🔍 Buscando refresh token '{}...' con estado '{}'",
+                token.substring(0, Math.min(20, token.length())), estado);
+
         Optional<RefreshToken> result = jpaRepository.findByTokenAndEstadoForUpdate(token, estado)
                 .map(mapper::toDomain);
 
         if (result.isPresent()) {
-            log.info("Refresh token encontrado para token '{}'", token);
+            log.info("✅ Refresh token encontrado con id={}", result.get().getId());
         } else {
-            log.warn("Refresh token no encontrado para token '{}' con estado '{}'", token, estado);
+            log.warn("❌ Refresh token NO encontrado para estado '{}'", estado);
         }
 
         return result;
     }
 
     @Override
-    public void expirarTokensPorUsuario(Integer usuarioId) {
-        log.info("Expirando refresh tokens para usuarioId={}", usuarioId);
-        jpaRepository.expireTokensByUsuarioId(usuarioId);
-        log.info("Refresh tokens expirados para usuarioId={}", usuarioId);
+    @Transactional
+    public int expirarTokensPorUsuario(Integer usuarioId) {
+        log.info("📛 Expirando refresh tokens VALID para usuarioId={}", usuarioId);
+
+        // 🔥 Retornar la cantidad de tokens expirados
+        int updated = jpaRepository.expireTokensByUsuarioId(usuarioId);
+
+        log.info("✅ {} refresh tokens expirados para usuarioId={}", updated, usuarioId);
+
+        return updated;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<RefreshToken> buscarPorUsuarioYEstado(Integer usuarioId, String estado) {
-        log.info("Buscando refresh tokens para usuarioId={} con estado={}", usuarioId, estado);
+        log.info("🔍 Buscando refresh tokens para usuarioId={} con estado={}", usuarioId, estado);
+
         List<RefreshToken> tokens = jpaRepository.findAllByUsuarioIdAndEstado(usuarioId, estado)
                 .stream()
                 .map(mapper::toDomain)
                 .toList();
 
-        log.info("{} refresh tokens encontrados para usuarioId={}", tokens.size(), usuarioId);
+        log.info("✅ {} refresh tokens encontrados para usuarioId={}", tokens.size(), usuarioId);
         return tokens;
     }
 }

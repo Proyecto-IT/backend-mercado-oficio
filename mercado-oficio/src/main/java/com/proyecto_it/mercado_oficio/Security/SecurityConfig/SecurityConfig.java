@@ -38,16 +38,21 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http, DaoAuthenticationProvider daoAuthenticationProvider) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
-                .cors(cors -> corsConfigurationSource())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        // ENDPOINTS PÚBLICOS
-                        .requestMatchers("/api/auth/register", "/api/auth/validate", "/api/auth/login",
-                                "/api/auth/refresh", "/api/usuario/confirmar-email",
+                        // ENDPOINTS PÚBLICOS - AUTH
+                        .requestMatchers(
+                                "/api/auth/register",
+                                "/api/auth/validate",
+                                "/api/auth/login",
+                                "/api/auth/refresh",  // refresh es público porque usa cookie
                                 "/api/auth/reset-password-request",
                                 "/api/auth/reset-password/confirm",
-                                "/api/auth/oauth2/success").permitAll()
+                                "/api/auth/oauth2/success",
+                                "/api/usuario/confirmar-email"
+                        ).permitAll()
 
-                        //MERCADOPAGO
+                        // MERCADOPAGO
                         .requestMatchers(
                                 "/api/mp/**",
                                 "/pago-exitoso",
@@ -55,20 +60,27 @@ public class SecurityConfig {
                                 "/pago-fallido"
                         ).permitAll()
 
-                        //OAUTH2
+                        // OAUTH2
                         .requestMatchers("/login/oauth2/**", "/oauth2/**").permitAll()
 
-                        // ENDPOINTS PROTEGIDOS
-                        .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
+                        // ENDPOINTS PROTEGIDOS - AUTH
+                        .requestMatchers("/api/auth/me").authenticated() // ← CRÍTICO: debe estar autenticado
+                        .requestMatchers(HttpMethod.PUT, "/api/auth/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
+
+                        // USUARIO
                         .requestMatchers(HttpMethod.PUT, "/api/usuario/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
+
+                        // OFICIOS
+                        .requestMatchers(HttpMethod.GET, "/api/oficios/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/oficios/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/oficios/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/oficios/**").hasRole("ADMIN")
+
+                        // RESTO DE API - GET permitido para autenticados
+                        .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
+
+                        // CUALQUIER OTRA PETICIÓN
                         .anyRequest().authenticated()
-                )
-                //CONFIGURACIÓN OAUTH2
-                .oauth2Login(oauth2 -> oauth2
-                        .loginPage("/login")
-                        .defaultSuccessUrl("/api/auth/oauth2/success", true)
-                        .failureUrl("/login?error")
-                        .permitAll()
                 )
                 // Autenticación
                 .authenticationProvider(daoAuthenticationProvider)
@@ -94,6 +106,7 @@ public class SecurityConfig {
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowCredentials(true);
         configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie")); // ← Exponer headers necesarios
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

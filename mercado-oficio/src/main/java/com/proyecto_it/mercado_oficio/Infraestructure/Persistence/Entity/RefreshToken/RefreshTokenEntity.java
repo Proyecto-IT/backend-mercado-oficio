@@ -7,7 +7,10 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "refresh_token")
+@Table(name = "refresh_token", indexes = {
+        @Index(name = "idx_token", columnList = "token"),
+        @Index(name = "idx_usuario_estado", columnList = "usuario_id, estado")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -26,22 +29,22 @@ public class RefreshTokenEntity {
     @JoinColumn(name = "usuario_id", nullable = false)
     private UsuarioEntity usuario;
 
+    @Column(name = "fecha_creacion", nullable = false, updatable = false)
+    private LocalDateTime fechaCreacion;
+
     @Column(name = "fecha_expiracion", nullable = false)
     private LocalDateTime fechaExpiracion;
 
-    @Column(name = "fecha_creacion", nullable = false, updatable = false)
-    private LocalDateTime fechaCreacion = LocalDateTime.now();
-
     @Column(nullable = false, length = 20)
-    private String estado = "VALID";
+    private String estado; // VALID, EXPIRED, REVOKED
 
-    public RefreshTokenEntity(String token, UsuarioEntity usuario, LocalDateTime fechaExpiracion) {
-        this.token = token;
-        this.usuario = usuario;
-        this.fechaExpiracion = fechaExpiracion;
-        this.fechaCreacion = LocalDateTime.now();
-        this.estado = "VALID";
+    @PrePersist
+    protected void onCreate() {
+        if (fechaCreacion == null) {
+            fechaCreacion = LocalDateTime.now();
+        }
+        if (estado == null) {
+            estado = "VALID";
+        }
     }
 }
-
-
