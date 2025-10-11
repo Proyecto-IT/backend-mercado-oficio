@@ -1,4 +1,4 @@
-package com.proyecto_it.mercado_oficio.Infraestructure.Controller;
+package com.proyecto_it.mercado_oficio.Web;
 
 import com.proyecto_it.mercado_oficio.Domain.Model.Oficio;
 import com.proyecto_it.mercado_oficio.Domain.Service.Oficio.OficioService;
@@ -43,14 +43,14 @@ public class OficioController {
         return ResponseEntity.ok(response);
     }
 
-    @PutMapping("/upd")
+    @PutMapping
     public ResponseEntity<OficioResponse> actualizarOficio(@Valid @RequestBody OficioUpdateRequest request) {
         Oficio oficio = new Oficio(request.getId(), request.getNombre());
         Oficio actualizado = oficioService.actualizarOficio(oficio);
         return ResponseEntity.ok(new OficioResponse(actualizado.getId(), actualizado.getNombre()));
     }
 
-    @DeleteMapping("/borrar")
+    @DeleteMapping
     public ResponseEntity<Void> eliminarOficio(@RequestParam Integer id) {
         oficioService.eliminarOficio(id);
         return ResponseEntity.noContent().build();
