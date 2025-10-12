@@ -99,27 +99,27 @@ public class JwtTokenServiceImpl implements JwtTokenService {
                     .buscarPorTokenYEstado(refreshToken, "VALID")
                     .orElseThrow(() -> {
                         log.warn("❌ Refresh token no encontrado en BD o no es VALID");
+                        log.warn("🔍 Token recibido: {}...", refreshToken.substring(0, 30));
 
-                        // 🔍 Debug: Buscar todos los tokens del usuario para ver qué pasó
+                        // Debug adicional
                         try {
-                            String userEmail = jwtTokenService.extractUsername(refreshToken);
-                            Usuario user = usuarioRepository.buscarPorGmail(userEmail).orElse(null);
+                            Usuario user = usuarioRepository.buscarPorGmail(username).orElse(null);
                             if (user != null) {
-                                List<RefreshToken> allTokens = refreshTokenRepository
+                                List<RefreshToken> validTokens = refreshTokenRepository
                                         .buscarPorUsuarioYEstado(user.getId(), "VALID");
-                                log.warn("🔍 Tokens VALID encontrados para usuario {}: {}",
-                                        user.getId(), allTokens.size());
 
-                                List<RefreshToken> expiredTokens = refreshTokenRepository
-                                        .buscarPorUsuarioYEstado(user.getId(), "EXPIRED");
-                                log.warn("🔍 Tokens EXPIRED encontrados para usuario {}: {}",
-                                        user.getId(), expiredTokens.size());
+                                if (!validTokens.isEmpty()) {
+                                    log.warn("⚠️ Usuario tiene {} tokens VALID, pero el recibido no coincide",
+                                            validTokens.size());
+                                    log.warn("🔍 Primer token válido en BD: {}...",
+                                            validTokens.get(0).getToken().substring(0, 30));
+                                }
                             }
                         } catch (Exception debugEx) {
                             log.error("Error en debug: {}", debugEx.getMessage());
                         }
 
-                        return new RefreshTokenNotFoundException("Refresh token no válido");
+                        throw new RefreshTokenNotFoundException("Refresh token no válido o ya fue usado");
                     });
 
             log.info("✅ Token encontrado en BD con id={}", tokenDomain.getId());

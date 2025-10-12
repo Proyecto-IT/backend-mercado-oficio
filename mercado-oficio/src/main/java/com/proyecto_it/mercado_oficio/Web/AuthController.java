@@ -139,39 +139,75 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody @Valid AuthRequest request) {
+    public ResponseEntity<?> login(
+            @RequestBody @Valid AuthRequest request,
+            HttpServletRequest httpRequest) {
+
         log.info("Intento de login para gmail={}", request.getGmail());
+
         try {
+            // 🔥 PASO 0: Limpiar cualquier refresh token anterior en la cookie
+            String oldRefreshToken = Arrays.stream(
+                            Optional.ofNullable(httpRequest.getCookies()).orElse(new Cookie[0]))
+                    .filter(c -> c.getName().equals("refreshToken"))
+                    .map(Cookie::getValue)
+                    .findFirst()
+                    .orElse(null);
+
+            if (oldRefreshToken != null && !oldRefreshToken.isEmpty()) {
+                log.info("🧹 Token anterior detectado en cookie, invalidándolo...");
+                try {
+                    jwtTokenService.invalidarRefreshToken(oldRefreshToken);
+                    log.info("✅ Token anterior invalidado antes del login");
+                } catch (Exception e) {
+                    log.warn("⚠️ No se pudo invalidar token anterior: {}", e.getMessage());
+                    // Continuar de todos modos
+                }
+            }
+
+            // Validar usuario
             Optional<Usuario> optUser = usuarioService.buscarPorGmail(request.getGmail());
             if (optUser.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Credenciales inválidas"));
             }
 
             Usuario usuario = optUser.get();
 
             if (!usuario.isVerificado()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Usuario no verificado");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("error", "Usuario no verificado"));
             }
 
             if (!usuario.puedeUsarLocal()) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Usa el login con Google para este usuario");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Usa el login con Google para este usuario"));
             }
 
-            var authToken = new UsernamePasswordAuthenticationToken(request.getGmail(), request.getPassword());
+            // Autenticar
+            var authToken = new UsernamePasswordAuthenticationToken(
+                    request.getGmail(),
+                    request.getPassword()
+            );
             var auth = authManager.authenticate(authToken);
             var userDetails = (UserDetails) auth.getPrincipal();
 
+            // Generar nuevos tokens (esto ya expira todos los anteriores en BD)
             AuthResponse tokens = jwtTokenService.generarTokens(userDetails);
-            log.info("Login exitoso, gmail={}, usuarioId={}", request.getGmail(), tokens.getUsuarioId());
+            log.info("✅ Login exitoso, gmail={}, usuarioId={}",
+                    request.getGmail(), tokens.getUsuarioId());
 
-            // 🔥 Cookie para DESARROLLO LOCAL
+            // 🔥 Crear cookie con el NUEVO refresh token
             ResponseCookie cookie = ResponseCookie.from("refreshToken", tokens.getRefreshToken())
                     .httpOnly(true)
-                    .secure(false)       // 🔥 false en desarrollo
-                    .sameSite("Lax")     // 🔥 Lax en desarrollo (NO None)
+                    .secure(false)       // false en desarrollo local
+                    .sameSite("Lax")     // Lax para desarrollo
                     .path("/")
-                    .maxAge(7 * 24 * 60 * 60)
+                    .maxAge(7 * 24 * 60 * 60) // 7 días
                     .build();
+
+            log.info("🍪 Nueva cookie de refresh token establecida");
+            log.info("🔑 Access token generado: {}...", tokens.getAccessToken().substring(0, 20));
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -181,10 +217,13 @@ public class AuthController {
                     ));
 
         } catch (AuthenticationException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
+            log.warn("❌ Autenticación fallida para gmail={}", request.getGmail());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Credenciales inválidas"));
         } catch (Exception e) {
-            log.error("Error inesperado en login: ", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error interno del servidor");
+            log.error("❌ Error inesperado en login: ", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Error interno del servidor"));
         }
     }
 
@@ -204,13 +243,31 @@ public class AuthController {
 
             log.info("🔄 Refresh token encontrado en cookie: {}...", refreshToken.substring(0, 20));
 
-            // 🔥 DEBUG: Log completo del token (temporal)
-            log.info("🔍 TOKEN COMPLETO DE COOKIE: {}", refreshToken);
+            // 🔍 NUEVO: Extraer username del JWT antes de buscar en BD
+            String username = jwtService.extractUsername(refreshToken);
+            log.info("👤 Username extraído del token: {}", username);
+
+            // 🔍 NUEVO: Verificar si el token JWT está expirado
+            if (jwtService.isTokenExpired(refreshToken)) {
+                log.warn("❌ JWT del refresh token expirado para {}", username);
+
+                // Limpiar cookie
+                ResponseCookie clearCookie = ResponseCookie.from("refreshToken", "")
+                        .httpOnly(true)
+                        .secure(false)
+                        .sameSite("Lax")
+                        .path("/")
+                        .maxAge(0)
+                        .build();
+
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
+                        .body(Map.of("error", "Token expirado, por favor inicia sesión nuevamente"));
+            }
 
             AuthResponse newTokens = jwtTokenService.refrescarTokens(refreshToken);
 
-            // 🔥 DEBUG: Log del nuevo token generado
-            log.info("🔍 NUEVO TOKEN GENERADO: {}", newTokens.getRefreshToken());
+            log.info("✅ Nuevos tokens generados para usuario: {}", username);
 
             ResponseCookie cookie = ResponseCookie.from("refreshToken", newTokens.getRefreshToken())
                     .httpOnly(true)
@@ -224,12 +281,42 @@ public class AuthController {
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
-                    .body(Map.of("accessToken", newTokens.getAccessToken()));
+                    .body(Map.of(
+                            "accessToken", newTokens.getAccessToken(),
+                            "usuarioId", newTokens.getUsuarioId()
+                    ));
+
+        } catch (RefreshTokenNotFoundException | RefreshTokenExpiredException e) {
+            log.warn("❌ Token inválido: {}", e.getMessage());
+
+            // 🔥 IMPORTANTE: Limpiar la cookie cuando el token no es válido
+            ResponseCookie clearCookie = createClearCookie();
+
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
+                    .body(Map.of("error", "Refresh token inválido o expirado"));
 
         } catch (Exception e) {
             log.error("❌ Error al refrescar token: ", e);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Refresh token inválido o expirado");
+
+            // También limpiar cookie en errores inesperados
+            ResponseCookie clearCookie = createClearCookie();
+
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
+                    .body(Map.of("error", "Error al procesar el refresh token"));
         }
+    }
+
+    // 🔥 Helper para crear cookie de limpieza
+    private ResponseCookie createClearCookie() {
+        return ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(false)
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(0)
+                .build();
     }
 
     private ResponseEntity<?> refreshTokenWithRetry(RefreshTokenRequest request, int attempt) {
@@ -277,67 +364,44 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletRequest request, Authentication authentication) {
+    public ResponseEntity<?> logout(HttpServletRequest request) {
+        log.info("🚪 Logout solicitado");
+
         try {
-            // 1. Intentar obtener el refresh token de la cookie
-            Optional<String> refreshTokenOpt = Arrays.stream(
-                            Optional.ofNullable(request.getCookies()).orElse(new Cookie[0]))
+            // Intentar extraer el refresh token de la cookie
+            String refreshToken = Arrays.stream(Optional.ofNullable(request.getCookies()).orElse(new Cookie[0]))
                     .filter(c -> c.getName().equals("refreshToken"))
                     .map(Cookie::getValue)
-                    .findFirst();
+                    .findFirst()
+                    .orElse(null);
 
-            // 2. Si hay refresh token, invalidarlo en la BD
-            if (refreshTokenOpt.isPresent()) {
-                String refreshToken = refreshTokenOpt.get();
-                log.info("🔍 Invalidando refresh token de cookie: {}...",
-                        refreshToken.substring(0, Math.min(20, refreshToken.length())));
-
-                try {
-                    // Buscar y expirar el token específico
-                    jwtTokenService.invalidarRefreshToken(refreshToken);
-                    log.info("✅ Refresh token invalidado en BD");
-                } catch (Exception e) {
-                    log.warn("⚠️ No se pudo invalidar el refresh token en BD: {}", e.getMessage());
-                }
+            // Si hay token, invalidarlo en la BD
+            if (refreshToken != null && !refreshToken.isEmpty()) {
+                log.info("🔍 Invalidando refresh token en BD");
+                jwtTokenService.invalidarRefreshToken(refreshToken);
+                log.info("✅ Token invalidado exitosamente");
+            } else {
+                log.info("ℹ️ No se encontró refresh token para invalidar");
             }
 
-            // 3. Si hay usuario autenticado, expirar todos sus tokens
-            if (authentication != null && authentication.isAuthenticated()) {
-                String username = authentication.getName();
-                log.info("🚪 Logout para usuario: {}", username);
+            // Siempre limpiar la cookie
+            ResponseCookie clearCookie = createClearCookie();
 
-                try {
-                    Usuario usuario = usuarioService.buscarPorGmail(username).orElse(null);
-                    if (usuario != null) {
-                        // Expirar todos los tokens del usuario
-                        refreshTokenRepository.expirarTokensPorUsuario(usuario.getId());
-                        log.info("✅ Todos los tokens del usuario {} expirados", usuario.getId());
-                    }
-                } catch (Exception e) {
-                    log.warn("⚠️ No se pudieron expirar todos los tokens: {}", e.getMessage());
-                }
-            }
-
-            // 4. Siempre invalidar la cookie
-            ResponseCookie cookie = ResponseCookie.from("refreshToken", "")
-                    .httpOnly(true)
-                    .secure(false)
-                    .sameSite("Lax")
-                    .path("/")
-                    .maxAge(0) // Expira inmediatamente
-                    .build();
-
-            log.info("✅ Logout exitoso");
+            log.info("✅ Logout completado");
 
             return ResponseEntity.ok()
-                    .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                    .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
                     .body(Map.of("message", "Logout exitoso"));
 
         } catch (Exception e) {
             log.error("❌ Error en logout: ", e);
-            // Responder OK de todos modos para que el frontend pueda limpiar su estado
+
+            // Aún en caso de error, limpiar la cookie
+            ResponseCookie clearCookie = createClearCookie();
+
             return ResponseEntity.ok()
-                    .body(Map.of("message", "Logout exitoso (con errores menores)"));
+                    .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
+                    .body(Map.of("message", "Logout procesado"));
         }
     }
     @PostMapping("/reset-password-request")

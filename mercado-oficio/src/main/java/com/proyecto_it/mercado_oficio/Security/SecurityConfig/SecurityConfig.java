@@ -51,7 +51,6 @@ public class SecurityConfig {
                                 "/api/auth/oauth2/success",
                                 "/api/usuario/confirmar-email"
                         ).permitAll()
-
                         // MERCADOPAGO
                         .requestMatchers(
                                 "/api/mp/**",
@@ -59,26 +58,31 @@ public class SecurityConfig {
                                 "/pago-pendiente",
                                 "/pago-fallido"
                         ).permitAll()
-
                         // OAUTH2
                         .requestMatchers("/login/oauth2/**", "/oauth2/**").permitAll()
-
                         // ENDPOINTS PROTEGIDOS - AUTH
                         .requestMatchers("/api/auth/me").authenticated() // ← CRÍTICO: debe estar autenticado
                         .requestMatchers(HttpMethod.PUT, "/api/auth/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
-
                         // USUARIO
                         .requestMatchers(HttpMethod.PUT, "/api/usuario/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
-
                         // OFICIOS
                         .requestMatchers(HttpMethod.GET, "/api/oficios/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
                         .requestMatchers(HttpMethod.PUT, "/api/oficios/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/oficios/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/oficios/**").hasRole("ADMIN")
-
+                        //SERVICIOS
+                        // ENDPOINTS PÚBLICOS
+                        .requestMatchers(HttpMethod.GET, "/api/servicios/{id}").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/servicios/usuario/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/servicios/oficio/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/servicios").permitAll()
+                        // ENDPOINTS SOLO TRABAJADOR O CLIENTE
+                        .requestMatchers(HttpMethod.POST, "/api/servicios").hasAnyRole("CLIENTE","TRABAJADOR")
+                        // ACTUALIZAR/ELIMINAR SOLO TRABAJADOR
+                        .requestMatchers(HttpMethod.PUT, "/api/servicios/**").hasRole("TRABAJADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/servicios/**").hasRole("TRABAJADOR")
                         // RESTO DE API - GET permitido para autenticados
                         .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
-
                         // CUALQUIER OTRA PETICIÓN
                         .anyRequest().authenticated()
                 )

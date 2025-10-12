@@ -20,7 +20,7 @@ public class Usuario {
     private String cp;
     private String ciudad;
     private String telefono;
-
+    private String imagenUrl;
     // Métodos de dominio
     public boolean esAdministrador() {
         return permiso == 1;

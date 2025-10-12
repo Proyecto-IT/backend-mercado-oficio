@@ -49,4 +49,7 @@ public class UsuarioEntity {
 
     @Column(nullable = false, length = 20)
     private String telefono;
+
+    @Column(name = "imagen_url")
+    private String imagenUrl;
 }
