@@ -1,4 +1,4 @@
-package com.proyecto_it.mercado_oficio.Infraestructure.Controller;
+package com.proyecto_it.mercado_oficio;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.proyecto_it.mercado_oficio.Domain.Model.Oficio;
@@ -6,6 +6,7 @@ import com.proyecto_it.mercado_oficio.Domain.Service.Oficio.OficioService;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Oficio.OficioCreateRequest;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Oficio.OficioUpdateRequest;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Oficio.OficioResponse;
+import com.proyecto_it.mercado_oficio.Web.OficioController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
