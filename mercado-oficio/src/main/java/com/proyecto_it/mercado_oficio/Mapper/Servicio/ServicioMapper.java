@@ -9,7 +9,9 @@ import com.proyecto_it.mercado_oficio.Domain.Model.Servicio;
 import com.proyecto_it.mercado_oficio.Domain.Model.Usuario;
 import com.proyecto_it.mercado_oficio.Domain.Repository.OficioRepository;
 import com.proyecto_it.mercado_oficio.Domain.Repository.UsuarioRepository;
+import com.proyecto_it.mercado_oficio.Domain.Service.Oficio.OficioCacheService;
 import com.proyecto_it.mercado_oficio.Domain.Service.Oficio.OficioService;
+import com.proyecto_it.mercado_oficio.Domain.Service.Usuario.UsuarioCacheService;
 import com.proyecto_it.mercado_oficio.Domain.ValueObjects.Disponibilidad;
 import com.proyecto_it.mercado_oficio.Domain.ValueObjects.Especialidades;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Servicio.Portafolio.PortafolioResponseDTO;
@@ -31,9 +33,9 @@ import java.util.stream.Collectors;
 public class ServicioMapper {
 
     private final ObjectMapper objectMapper;
-    private final UsuarioRepository usuarioRepository;
-    private final OficioService oficioService;
-    private final OficioRepository oficioRepository;
+    private final UsuarioCacheService usuarioCacheService; // 🔥 CAMBIO: Usar cache
+    private final OficioCacheService oficioCacheService;   // 🔥 CAMBIO: Usar cache
+
     // ===== DTO -> DOMAIN =====
 
     public Servicio toDomain(ServicioRequestDTO dto, Integer usuarioId) {
@@ -83,12 +85,11 @@ public class ServicioMapper {
     // ===== DOMAIN -> DTO =====
 
     public ServicioResponseDTO toResponseDTO(Servicio servicio) {
-        // Obtener datos del usuario
-        Usuario usuario = usuarioRepository.buscarPorId(servicio.getUsuarioId())
+        // 🔥 USAR CACHE en lugar de repositorio directo
+        Usuario usuario = usuarioCacheService.buscarPorIdCached(servicio.getUsuarioId())
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-        // Obtener nombre del oficio
-        Oficio oficio = oficioRepository.buscarPorId(servicio.getOficioId())
+        Oficio oficio = oficioCacheService.buscarPorIdCached(servicio.getOficioId())
                 .orElseThrow(() -> new RuntimeException("Oficio no encontrado"));
 
         return ServicioResponseDTO.builder()
@@ -105,10 +106,11 @@ public class ServicioMapper {
                         servicio.getEspecialidades().getItems() : null)
                 .ubicacion(servicio.getUbicacion())
                 .trabajosCompletados(servicio.getTrabajosCompletados())
-                .imagenUrl(usuario.getImagenUrl()) // 🔥 Imagen del usuario
                 .nombreTrabajador(usuario.getNombre())
                 .apellidoTrabajador(usuario.getApellido())
                 .emailTrabajador(usuario.getGmail())
+                .imagenUsuario(convertirImagenABase64(usuario.getImagen()))
+                .imagenUsuarioTipo(usuario.getImagenTipo())
                 .portafolios(new ArrayList<>())
                 .build();
     }
@@ -118,14 +120,20 @@ public class ServicioMapper {
             List<Portafolio> portafolios,
             PortafolioMapper portafolioMapper) {
 
-        Usuario usuario = usuarioRepository.buscarPorId(servicio.getUsuarioId())
+        // 🔥 USAR CACHE en lugar de repositorio directo
+        Usuario usuario = usuarioCacheService.buscarPorIdCached(servicio.getUsuarioId())
                 .orElse(null);
+
+        // 🔥 OPTIMIZACIÓN: Obtener nombre de oficio desde cache
+        String nombreOficio = oficioCacheService.buscarPorIdCached(servicio.getOficioId())
+                .map(Oficio::getNombre)
+                .orElse("Desconocido");
 
         return ServicioResponseDTO.builder()
                 .id(servicio.getId())
                 .usuarioId(servicio.getUsuarioId())
                 .oficioId(servicio.getOficioId())
-                .nombreOficio(obtenerNombreOficio(servicio.getOficioId()))
+                .nombreOficio(nombreOficio)
                 .descripcion(servicio.getDescripcion())
                 .tarifaHora(servicio.getTarifaHora())
                 .disponibilidad(servicio.getDisponibilidad() != null ?
@@ -135,27 +143,23 @@ public class ServicioMapper {
                         servicio.getEspecialidades().getItems() : null)
                 .ubicacion(servicio.getUbicacion())
                 .trabajosCompletados(servicio.getTrabajosCompletados())
-                .imagenUrl(servicio.getImagenUrl())
                 .portafolios(portafolios.stream()
                         .map(portafolioMapper::toResponseDTO)
                         .collect(Collectors.toList()))
                 .nombreTrabajador(usuario != null ? usuario.getNombre() : null)
                 .apellidoTrabajador(usuario != null ? usuario.getApellido() : null)
                 .emailTrabajador(usuario != null ? usuario.getGmail() : null)
+                .imagenUsuario(usuario != null ? convertirImagenABase64(usuario.getImagen()) : null)
+                .imagenUsuarioTipo(usuario != null ? usuario.getImagenTipo() : null)
                 .build();
     }
 
-
     // ===== DOMAIN -> ENTITY =====
 
-    // 🔥 MÉTODO PRINCIPAL - Requiere UsuarioEntity
     public ServicioEntity toEntity(Servicio servicio, UsuarioEntity usuario) {
         ServicioEntity entity = new ServicioEntity();
         entity.setId(servicio.getId());
-
-        // 🔥 CRÍTICO: Asignar el usuario
         entity.setUsuario(usuario);
-
         entity.setOficioId(servicio.getOficioId());
         entity.setDescripcion(servicio.getDescripcion());
         entity.setTarifaHora(servicio.getTarifaHora() != null ?
@@ -171,7 +175,7 @@ public class ServicioMapper {
 
     // ===== MÉTODOS AUXILIARES =====
 
-    private Disponibilidad parseDisponibilidad(String json) {
+    public Disponibilidad parseDisponibilidad(String json) {
         try {
             if (json == null || json.trim().isEmpty()) {
                 return null;
@@ -186,7 +190,7 @@ public class ServicioMapper {
         }
     }
 
-    private String serializeDisponibilidad(Disponibilidad disponibilidad) {
+    public String serializeDisponibilidad(Disponibilidad disponibilidad) {
         try {
             if (disponibilidad == null) {
                 return null;
@@ -197,7 +201,7 @@ public class ServicioMapper {
         }
     }
 
-    private List<String> parseEspecialidades(String json) {
+    public List<String> parseEspecialidades(String json) {
         try {
             if (json == null || json.trim().isEmpty()) {
                 return List.of();
@@ -208,7 +212,7 @@ public class ServicioMapper {
         }
     }
 
-    private String serializeEspecialidades(Especialidades especialidades) {
+    public String serializeEspecialidades(Especialidades especialidades) {
         try {
             if (especialidades == null) {
                 return null;
@@ -219,11 +223,10 @@ public class ServicioMapper {
         }
     }
 
-    private String obtenerNombreOficio(Integer oficioId) {
-        if (oficioId == null) return null;
-
-        return oficioService.buscarPorId(oficioId)
-                .map(Oficio::getNombre)
-                .orElse("Desconocido");
+    private String convertirImagenABase64(byte[] imagen) {
+        if (imagen == null || imagen.length == 0) {
+            return null;
+        }
+        return java.util.Base64.getEncoder().encodeToString(imagen);
     }
 }

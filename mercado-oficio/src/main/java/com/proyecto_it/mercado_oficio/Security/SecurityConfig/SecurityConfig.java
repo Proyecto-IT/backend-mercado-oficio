@@ -45,7 +45,7 @@ public class SecurityConfig {
                                 "/api/auth/register",
                                 "/api/auth/validate",
                                 "/api/auth/login",
-                                "/api/auth/refresh",  // refresh es público porque usa cookie
+                                "/api/auth/refresh",
                                 "/api/auth/reset-password-request",
                                 "/api/auth/reset-password/confirm",
                                 "/api/auth/oauth2/success",
@@ -61,37 +61,42 @@ public class SecurityConfig {
                         // OAUTH2
                         .requestMatchers("/login/oauth2/**", "/oauth2/**").permitAll()
                         // ENDPOINTS PROTEGIDOS - AUTH
-                        .requestMatchers("/api/auth/me").authenticated() // ← CRÍTICO: debe estar autenticado
+                        .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/auth/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
-                        // USUARIO
-                        .requestMatchers(HttpMethod.PUT, "/api/usuario/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
+
+                        // ⭐ USUARIO - RUTAS ESPECÍFICAS CON AUTENTICACIÓN SIMPLE
+                        .requestMatchers(HttpMethod.GET, "/api/usuario/me/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/usuario/me/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/usuario/me/**").authenticated()
+
+                        // USUARIO - RUTAS GENERALES (otros usuarios) CON ROLES
+                        .requestMatchers(HttpMethod.GET, "/api/usuario/{gmail}").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/usuario/{gmail}").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
+
                         // OFICIOS
                         .requestMatchers(HttpMethod.GET, "/api/oficios/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
                         .requestMatchers(HttpMethod.PUT, "/api/oficios/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/oficios/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/oficios/**").hasRole("ADMIN")
-                        //SERVICIOS
-                        // ENDPOINTS PÚBLICOS
+
+                        // SERVICIOS
                         .requestMatchers(HttpMethod.GET, "/api/servicios/{id}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/servicios/usuario/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/servicios/oficio/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/servicios").permitAll()
-                        // ENDPOINTS SOLO TRABAJADOR O CLIENTE
-                        .requestMatchers(HttpMethod.POST, "/api/servicios").hasAnyRole("CLIENTE","TRABAJADOR")
-                        // ACTUALIZAR/ELIMINAR SOLO TRABAJADOR
+                        .requestMatchers(HttpMethod.POST, "/api/servicios").hasAnyRole("CLIENTE", "TRABAJADOR")
                         .requestMatchers(HttpMethod.PUT, "/api/servicios/**").hasRole("TRABAJADOR")
                         .requestMatchers(HttpMethod.DELETE, "/api/servicios/**").hasRole("TRABAJADOR")
-                        // RESTO DE API - GET permitido para autenticados
+
+                        // RESTO DE API - GET para autenticados
                         .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
+
                         // CUALQUIER OTRA PETICIÓN
                         .anyRequest().authenticated()
                 )
-                // Autenticación
                 .authenticationProvider(daoAuthenticationProvider)
                 .authenticationProvider(jwtProvider)
-                // JWT filter
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
-                // Deshabilitar login clásico
                 .formLogin(AbstractHttpConfigurer::disable)
                 .build();
     }

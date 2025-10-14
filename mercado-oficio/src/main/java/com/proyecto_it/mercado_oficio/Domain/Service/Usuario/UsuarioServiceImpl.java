@@ -11,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
@@ -48,7 +50,7 @@ public class UsuarioServiceImpl implements UsuarioService {
             Usuario usuarioGuardado = usuarioRepository.guardar(usuario);
 
             // Actualizar cache después de crear
-            cacheService.actualizarUsuarioEnCache(usuarioGuardado);
+            cacheService.cachearUsuario(usuarioGuardado);
             cacheService.agregarUsuarioALista(usuarioGuardado);
 
             emailService.enviarEmailVerificacion(usuarioGuardado);
@@ -105,8 +107,8 @@ public class UsuarioServiceImpl implements UsuarioService {
                     .orElseThrow(() -> new RuntimeException("Error al obtener el usuario actualizado"));
 
             // Actualizar cache
-            cacheService.actualizarUsuarioEnCache(actualizado);
-            cacheService.actualizarUsuarioEnLista(actualizado);
+            cacheService.cachearUsuario(actualizado);
+            cacheService.cachearUsuario(actualizado);
 
             log.info("Usuario {} actualizado correctamente", gmail);
             return actualizado;
@@ -132,8 +134,8 @@ public class UsuarioServiceImpl implements UsuarioService {
             Usuario actualizado = usuarioRepository.guardar(usuario);
 
             // Actualizar cache
-            cacheService.actualizarUsuarioEnCache(actualizado);
-            cacheService.actualizarUsuarioEnLista(actualizado);
+            cacheService.cachearUsuario(actualizado);
+            cacheService.cachearUsuario(actualizado);
 
             log.info("Usuario ID {} actualizado correctamente", usuario.getId());
             return actualizado;
@@ -190,7 +192,7 @@ public class UsuarioServiceImpl implements UsuarioService {
             Usuario actualizado = usuarioRepository.guardar(usuario);
 
             // Actualizar cache
-            cacheService.actualizarUsuarioEnCache(actualizado);
+            cacheService.cachearUsuario(actualizado);
             cacheService.actualizarUsuarioEnLista(actualizado);
 
             log.info("Contraseña actualizada correctamente para usuario: {}", gmail);
@@ -218,8 +220,8 @@ public class UsuarioServiceImpl implements UsuarioService {
             Usuario actualizado = usuarioRepository.buscarPorId(id)
                     .orElseThrow(() -> new RuntimeException("Error al obtener usuario actualizado"));
 
-            cacheService.actualizarUsuarioEnCache(actualizado);
-            cacheService.actualizarUsuarioEnLista(actualizado);
+            cacheService.cachearUsuario(actualizado);
+            cacheService.cachearUsuario(actualizado);
 
             log.info("Permiso modificado correctamente para usuario ID {}", id);
         } catch (IllegalArgumentException e) {
@@ -268,7 +270,7 @@ public class UsuarioServiceImpl implements UsuarioService {
             Usuario actualizado = usuarioRepository.guardar(usuario);
 
             // Actualizar cache
-            cacheService.actualizarUsuarioEnCache(actualizado);
+            cacheService.cachearUsuario(actualizado);
             cacheService.actualizarUsuarioEnLista(actualizado);
 
             log.info("Usuario {} vinculado con Google exitosamente. Proveedor: {}", gmail, actualizado.getProveedor());
@@ -304,7 +306,7 @@ public class UsuarioServiceImpl implements UsuarioService {
             Usuario usuarioActualizado = usuarioRepository.guardar(usuario);
 
             // Actualizar cache
-            cacheService.actualizarUsuarioEnCache(usuarioActualizado);
+            cacheService.cachearUsuario(usuarioActualizado);
             cacheService.actualizarUsuarioEnLista(usuarioActualizado);
 
             log.info("Contraseña local establecida para usuario: {}. Ahora es híbrido: {}",
@@ -318,7 +320,130 @@ public class UsuarioServiceImpl implements UsuarioService {
             throw new RuntimeException("Error al establecer contraseña local", e);
         }
     }
+    @Override
+    @Transactional
+    public boolean actualizarImagenPerfil(String gmail, MultipartFile imagen) {
+        try {
+            log.info("📸 Actualizando imagen de perfil para usuario: {}", gmail);
 
+            // Buscar usuario
+            Usuario usuario = usuarioRepository.buscarPorGmail(gmail)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + gmail));
+
+            // Convertir imagen a bytes
+            byte[] imagenBytes = imagen.getBytes();
+            String imagenTipo = imagen.getContentType();
+
+            log.info("📊 Tamaño de imagen: {} bytes, Tipo: {}", imagenBytes.length, imagenTipo);
+
+            // Actualizar usuario con nueva imagen
+            Usuario usuarioActualizado = Usuario.builder()
+                    .id(usuario.getId())
+                    .nombre(usuario.getNombre())
+                    .apellido(usuario.getApellido())
+                    .gmail(usuario.getGmail())
+                    .password(usuario.getPassword())
+                    .permiso(usuario.getPermiso())
+                    .verificado(usuario.isVerificado())
+                    .proveedor(usuario.getProveedor())
+                    .direccion(usuario.getDireccion())
+                    .cp(usuario.getCp())
+                    .ciudad(usuario.getCiudad())
+                    .telefono(usuario.getTelefono())
+                    .imagen(imagenBytes)  // 🔥 Nueva imagen
+                    .imagenTipo(imagenTipo)
+                    .build();
+
+            // Guardar en BD
+            boolean actualizado = usuarioRepository.actualizarUsuario(usuarioActualizado);
+
+            if (actualizado) {
+                // Actualizar cache
+                cacheService.sincronizarDespuesDeActualizar(usuarioActualizado);
+                log.info("✅ Imagen de perfil actualizada y cache sincronizado para: {}", gmail);
+            }
+
+            return actualizado;
+
+        } catch (IOException e) {
+            log.error("❌ Error al leer imagen: {}", e.getMessage(), e);
+            throw new RuntimeException("Error al procesar la imagen", e);
+        } catch (Exception e) {
+            log.error("❌ Error al actualizar imagen de perfil: {}", e.getMessage(), e);
+            throw new RuntimeException("Error al actualizar imagen de perfil", e);
+        }
+    }
+
+    /**
+     * Elimina la imagen de perfil del usuario
+     */
+    @Override
+    @Transactional
+    public boolean eliminarImagenPerfil(String gmail) {
+        try {
+            log.info("🗑️ Eliminando imagen de perfil para usuario: {}", gmail);
+
+            // Buscar usuario
+            Usuario usuario = usuarioRepository.buscarPorGmail(gmail)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + gmail));
+
+            // Verificar que tenga imagen
+            if (usuario.getImagen() == null || usuario.getImagen().length == 0) {
+                log.warn("⚠️ El usuario {} no tiene imagen para eliminar", gmail);
+                return false;
+            }
+
+            // Actualizar usuario sin imagen
+            Usuario usuarioSinImagen = Usuario.builder()
+                    .id(usuario.getId())
+                    .nombre(usuario.getNombre())
+                    .apellido(usuario.getApellido())
+                    .gmail(usuario.getGmail())
+                    .password(usuario.getPassword())
+                    .permiso(usuario.getPermiso())
+                    .verificado(usuario.isVerificado())
+                    .proveedor(usuario.getProveedor())
+                    .direccion(usuario.getDireccion())
+                    .cp(usuario.getCp())
+                    .ciudad(usuario.getCiudad())
+                    .telefono(usuario.getTelefono())
+                    .imagen(null)  // 🔥 Eliminar imagen
+                    .imagenTipo(null)
+                    .build();
+
+            // Guardar en BD
+            boolean eliminado = usuarioRepository.actualizarUsuario(usuarioSinImagen);
+
+            if (eliminado) {
+                // Actualizar cache
+                cacheService.sincronizarDespuesDeActualizar(usuarioSinImagen);
+                log.info("✅ Imagen de perfil eliminada y cache sincronizado para: {}", gmail);
+            }
+
+            return eliminado;
+
+        } catch (Exception e) {
+            log.error("❌ Error al eliminar imagen de perfil: {}", e.getMessage(), e);
+            throw new RuntimeException("Error al eliminar imagen de perfil", e);
+        }
+    }
+
+    /**
+     * Verifica si un usuario tiene imagen de perfil
+     */
+    @Override
+    public boolean tieneImagenPerfil(String gmail) {
+        try {
+            Usuario usuario = usuarioRepository.buscarPorGmail(gmail)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + gmail));
+
+            return usuario.getImagen() != null && usuario.getImagen().length > 0;
+
+        } catch (Exception e) {
+            log.error("❌ Error al verificar imagen de perfil: {}", e.getMessage(), e);
+            return false;
+        }
+    }
     @Override
     @Transactional(readOnly = true)
     public boolean puedeUsarMetodoAutenticacion(String gmail, String metodo) {

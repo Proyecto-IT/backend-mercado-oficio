@@ -20,8 +20,10 @@ public class Usuario {
     private String cp;
     private String ciudad;
     private String telefono;
-    private String imagenUrl;
-    // Métodos de dominio
+    @ToString.Exclude // Evitar imprimir bytes en logs
+    private byte[] imagen; // Almacenar imagen como BLOB
+    private String imagenTipo;    // Métodos de dominio
+
     public boolean esAdministrador() {
         return permiso == 1;
     }
@@ -84,7 +86,19 @@ public class Usuario {
             setVerificado(true); // Google ya verifica emails
         }
     }
+    public boolean tieneImagen() {
+        return imagen != null && imagen.length > 0;
+    }
 
+    public long getTamanoImagen() {
+        return imagen != null ? imagen.length : 0;
+    }
+
+    // Limpiar imagen (útil para eliminar)
+    public void eliminarImagen() {
+        this.imagen = null;
+        this.imagenTipo = null;
+    }
     public void validar() {
         if (nombre == null || nombre.isBlank()) {
             throw new IllegalArgumentException("El nombre es obligatorio.");

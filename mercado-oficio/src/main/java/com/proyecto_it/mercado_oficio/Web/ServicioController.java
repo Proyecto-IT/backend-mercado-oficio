@@ -5,6 +5,7 @@ import com.proyecto_it.mercado_oficio.Domain.Model.Portafolio;
 import com.proyecto_it.mercado_oficio.Domain.Model.Servicio;
 import com.proyecto_it.mercado_oficio.Domain.Model.Usuario;
 import com.proyecto_it.mercado_oficio.Domain.Service.FilesStorage.FileStorageService;
+import com.proyecto_it.mercado_oficio.Domain.Service.Servicio.Portafolio.PortafolioCacheService;
 import com.proyecto_it.mercado_oficio.Domain.Service.Servicio.Portafolio.PortafolioService;
 import com.proyecto_it.mercado_oficio.Domain.Service.Servicio.ServicioService;
 import com.proyecto_it.mercado_oficio.Domain.Service.Servicio.ServicioServiceImpl;
@@ -21,29 +22,74 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
-@Slf4j
 @RestController
 @RequestMapping("/api/servicios")
 @RequiredArgsConstructor
+@Slf4j
 public class ServicioController {
 
     private final ServicioService servicioService;
     private final PortafolioService portafolioService;
+    private final UsuarioService usuarioService;
+    private final FileStorageService fileStorageService;
     private final ServicioMapper mapper;
     private final PortafolioMapper portafolioMapper;
-    private final FileStorageService fileStorageService;
     private final ObjectMapper objectMapper;
-    private final UsuarioService usuarioService;
-    /**
-     * Crear un nuevo servicio con archivo de imagen (Solo TRABAJADOR)
-     */
+    private final PortafolioCacheService portafolioCacheService; // 🔥 NUEVO
+
+    @GetMapping
+    public ResponseEntity<List<ServicioResponseDTO>> obtenerTodosLosServicios() {
+        List<Servicio> servicios = servicioService.obtenerTodosLosServicios();
+
+        List<ServicioResponseDTO> response = servicios.stream()
+                .map(servicio -> {
+                    // 🔥 USAR CACHE: obtenerPortafoliosPorServicioCached
+                    List<Portafolio> portafolios = portafolioCacheService
+                            .obtenerPortafoliosPorServicioCached(servicio.getId());
+                    return mapper.toResponseDTOWithPortafolios(servicio, portafolios, portafolioMapper);
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ServicioResponseDTO> obtenerServicioPorId(@PathVariable Integer id) {
+        Servicio servicio = servicioService.obtenerServicioPorId(id);
+
+        // 🔥 USAR CACHE
+        List<Portafolio> portafolios = portafolioCacheService
+                .obtenerPortafoliosPorServicioCached(id);
+
+        return ResponseEntity.ok(mapper.toResponseDTOWithPortafolios(
+                servicio, portafolios, portafolioMapper));
+    }
+
+    @GetMapping("/mis-servicios")
+    public ResponseEntity<List<ServicioResponseDTO>> obtenerMisServicios(
+            Authentication authentication) {
+
+        Integer usuarioId = obtenerUsuarioIdDeAuth(authentication);
+        List<Servicio> servicios = servicioService.obtenerServiciosPorUsuario(usuarioId);
+
+        List<ServicioResponseDTO> response = servicios.stream()
+                .map(servicio -> {
+                    // 🔥 USAR CACHE
+                    List<Portafolio> portafolios = portafolioCacheService
+                            .obtenerPortafoliosPorServicioCached(servicio.getId());
+                    return mapper.toResponseDTOWithPortafolios(servicio, portafolios, portafolioMapper);
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> crearServicio(
             @RequestPart("servicio") String servicioJson,
@@ -51,26 +97,40 @@ public class ServicioController {
             Authentication authentication) {
 
         try {
-            Integer usuarioId = obtenerUsuarioIdDeAuth(authentication);
+            // 🔐 Obtener Gmail desde el token JWT (UserDetails)
+            String gmail = authentication.getName();
 
-            // Obtener el usuario ANTES de crear el servicio
-            Usuario usuarioAntes = usuarioService.buscarPorId(usuarioId)
+            Usuario usuarioAntes = usuarioService.buscarPorGmail(gmail)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            Integer usuarioId = usuarioAntes.getId();
             Integer permisoAntes = usuarioAntes.getPermiso();
 
-            log.info("📝 Creando servicio - Usuario: {}, Permiso actual: {}",
-                    usuarioId, permisoAntes);
+            log.info("📝 Creando servicio - Usuario: {}, Gmail: {}, Permiso actual: {}", usuarioId, gmail, permisoAntes);
 
+            // Convertir JSON a DTO
             ServicioRequestDTO requestDTO = objectMapper.readValue(servicioJson, ServicioRequestDTO.class);
-
-            String imagenUrl = null;
-            if (imagen != null && !imagen.isEmpty()) {
-                imagenUrl = fileStorageService.guardarImagen(imagen);
-            }
-
             Servicio servicio = mapper.toDomain(requestDTO, usuarioId);
 
-            // Crear servicio (puede cambiar el rol del usuario)
+            // ============================
+            // 🔥 LÓGICA DE IMAGEN (USUARIO)
+            // ============================
+            if ("nueva".equalsIgnoreCase(requestDTO.getImagenOpcion()) && imagen != null) {
+                log.info("🖼️ Subiendo nueva imagen para el usuario {}", gmail);
+                usuarioService.actualizarImagenPerfil(gmail, imagen);
+
+            } else if ("mantener".equalsIgnoreCase(requestDTO.getImagenOpcion())) {
+                log.info("🖼️ Manteniendo imagen existente del usuario {}", gmail);
+
+            } else if ("ninguna".equalsIgnoreCase(requestDTO.getImagenOpcion())) {
+                log.info("🚫 Eliminando imagen del usuario {}", gmail);
+                usuarioService.eliminarImagenPerfil(gmail);
+            } else {
+                log.info("⚠️ Opción de imagen no especificada o inválida, no se modifica la imagen del usuario.");
+            }
+
+            // ============================
+            // 🔥 CREACIÓN DEL SERVICIO
+            // ============================
             Servicio servicioCreado;
             List<Portafolio> portafoliosCreados = null;
 
@@ -80,36 +140,33 @@ public class ServicioController {
                         .collect(Collectors.toList());
 
                 servicioCreado = ((ServicioServiceImpl) servicioService)
-                        .crearServicioConPortafolios(servicio, imagenUrl, portafolios);
+                        .crearServicioConPortafolios(servicio, null, portafolios);
 
-                portafoliosCreados = portafolioService.obtenerPortafoliosPorServicio(servicioCreado.getId());
+                portafoliosCreados = portafolioCacheService
+                        .obtenerPortafoliosPorServicioCached(servicioCreado.getId());
             } else {
-                servicioCreado = servicioService.crearServicio(servicio, imagenUrl);
+                servicioCreado = servicioService.crearServicio(servicio, null);
             }
 
-            // 🔥 VERIFICAR SI EL ROL CAMBIÓ Y OBTENER USUARIO ACTUALIZADO
-            Usuario usuarioDespues = usuarioService.buscarPorId(usuarioId)
+            // ============================
+            // 🔁 VERIFICAR CAMBIO DE ROL
+            // ============================
+            Usuario usuarioDespues = usuarioService.buscarPorGmail(gmail)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
             Integer permisoDespues = usuarioDespues.getPermiso();
 
             boolean rolCambio = !permisoAntes.equals(permisoDespues);
 
-            // 🔥 Si cambió el rol, usar el método del servicio para actualizar todo
             if (rolCambio) {
-                log.info("🔄 Rol cambió de {} a {} - Delegando actualización a UsuarioService",
-                        permisoAntes, permisoDespues);
-
-                // 🎯 DELEGAR TODO A UsuarioService (actualiza BD y cache)
+                log.info("🔄 Rol cambió de {} a {} - Actualizando...", permisoAntes, permisoDespues);
                 usuarioService.modificarPermisoUsuario(usuarioId, permisoDespues);
-
-                // Obtener usuario actualizado desde el cache ya refrescado
-                usuarioDespues = usuarioService.buscarPorId(usuarioId)
+                usuarioDespues = usuarioService.buscarPorGmail(gmail)
                         .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-                log.info("✅ Usuario actualizado correctamente por UsuarioService");
             }
 
-            // Preparar respuesta
+            // ============================
+            // 📦 RESPUESTA FINAL
+            // ============================
             Map<String, Object> responseBody = new HashMap<>();
 
             if (portafoliosCreados != null) {
@@ -119,34 +176,25 @@ public class ServicioController {
                 responseBody.put("servicio", mapper.toResponseDTO(servicioCreado));
             }
 
-            // 🔥 Si el rol cambió, incluir flag y usuario actualizado
             if (rolCambio) {
                 responseBody.put("rolActualizado", true);
-
-                // Construir objeto de usuario para el frontend
                 Map<String, Object> usuarioActualizado = new HashMap<>();
                 usuarioActualizado.put("nombre", usuarioDespues.getNombre());
                 usuarioActualizado.put("apellido", usuarioDespues.getApellido());
                 usuarioActualizado.put("gmail", usuarioDespues.getGmail());
                 usuarioActualizado.put("rol", mapearPermiso(permisoDespues));
-
                 responseBody.put("usuarioActualizado", usuarioActualizado);
-
-                log.info("✅ Enviando usuario actualizado al frontend: {}", usuarioActualizado);
+                log.info("✅ Usuario actualizado correctamente: {}", usuarioActualizado);
             }
 
-            return ResponseEntity
-                    .status(HttpStatus.CREATED)
-                    .body(responseBody);
+            return ResponseEntity.status(HttpStatus.CREATED).body(responseBody);
 
         } catch (Exception e) {
             log.error("❌ Error al crear servicio: ", e);
             throw new RuntimeException("Error al procesar la solicitud: " + e.getMessage(), e);
         }
     }
-    /**
-     * Actualizar servicio con archivo de imagen opcional (Solo el propietario)
-     */
+
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ServicioResponseDTO> actualizarServicio(
             @PathVariable Integer id,
@@ -156,25 +204,30 @@ public class ServicioController {
 
         try {
             Integer usuarioId = obtenerUsuarioIdDeAuth(authentication);
+            String gmail = authentication.getName();
 
-            // Validar permisos
             servicioService.validarPermisos(id, usuarioId);
 
-            // Deserializar el JSON del servicio
             ServicioUpdateDTO updateDTO = objectMapper.readValue(servicioJson, ServicioUpdateDTO.class);
 
-            // Guardar nueva imagen si se proporciona
-            String imagenUrl = null;
-            if (imagen != null && !imagen.isEmpty()) {
-                // Obtener servicio actual para eliminar imagen antigua
-                Servicio servicioActual = servicioService.obtenerServicioPorId(id);
-                if (servicioActual.getImagenUrl() != null) {
-                    fileStorageService.eliminarImagen(servicioActual.getImagenUrl());
-                }
+            // ============================
+            // 🔥 LÓGICA DE IMAGEN (USUARIO)
+            // ============================
+            if ("nueva".equalsIgnoreCase(updateDTO.getImagenOpcion()) && imagen != null) {
+                log.info("🖼️ Subiendo nueva imagen para el usuario {}", gmail);
+                usuarioService.actualizarImagenPerfil(gmail, imagen);
 
-                imagenUrl = fileStorageService.guardarImagen(imagen);
+            } else if ("mantener".equalsIgnoreCase(updateDTO.getImagenOpcion())) {
+                log.info("🖼️ Manteniendo imagen existente del usuario {}", gmail);
+
+            } else if ("ninguna".equalsIgnoreCase(updateDTO.getImagenOpcion())) {
+                log.info("🚫 Eliminando imagen del usuario {}", gmail);
+                usuarioService.eliminarImagenPerfil(gmail);
             }
 
+            // ============================
+            // 🔥 ACTUALIZACIÓN DEL SERVICIO
+            // ============================
             Servicio servicioActualizado = mapper.toDomain(updateDTO);
             servicioActualizado = Servicio.builder()
                     .id(id)
@@ -188,39 +241,36 @@ public class ServicioController {
                     .ubicacion(servicioActualizado.getUbicacion())
                     .build();
 
-            // Si hay portafolios, actualizar servicio con portafolios
             if (updateDTO.getPortafolios() != null) {
                 List<Portafolio> portafolios = updateDTO.getPortafolios().stream()
                         .map(pDto -> portafolioMapper.toDomain(pDto, id))
                         .collect(Collectors.toList());
 
                 Servicio servicioGuardado = ((ServicioServiceImpl) servicioService)
-                        .actualizarServicioConPortafolios(id, servicioActualizado, imagenUrl, portafolios);
+                        .actualizarServicioConPortafolios(id, servicioActualizado, imagen, portafolios);
 
-                List<Portafolio> portafoliosActualizados = portafolioService
-                        .obtenerPortafoliosPorServicio(id);
+                List<Portafolio> portafoliosActualizados = portafolioCacheService
+                        .obtenerPortafoliosPorServicioCached(id);
 
                 return ResponseEntity.ok(mapper.toResponseDTOWithPortafolios(
                         servicioGuardado, portafoliosActualizados, portafolioMapper));
             } else {
                 Servicio servicioGuardado = servicioService.actualizarServicio(
-                        id, servicioActualizado, imagenUrl);
+                        id, servicioActualizado, imagen);
 
-                List<Portafolio> portafoliosExistentes = portafolioService
-                        .obtenerPortafoliosPorServicio(id);
+                List<Portafolio> portafoliosExistentes = portafolioCacheService
+                        .obtenerPortafoliosPorServicioCached(id);
 
                 return ResponseEntity.ok(mapper.toResponseDTOWithPortafolios(
                         servicioGuardado, portafoliosExistentes, portafolioMapper));
             }
 
         } catch (Exception e) {
+            log.error("❌ Error al actualizar servicio: ", e);
             throw new RuntimeException("Error al procesar la solicitud: " + e.getMessage(), e);
         }
     }
 
-    /**
-     * Eliminar un servicio (Solo el propietario)
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminarServicio(
             @PathVariable Integer id,
@@ -228,7 +278,6 @@ public class ServicioController {
 
         Integer usuarioId = obtenerUsuarioIdDeAuth(authentication);
 
-        // Obtener servicio para eliminar su imagen
         Servicio servicio = servicioService.obtenerServicioPorId(id);
         if (servicio.getImagenUrl() != null) {
             fileStorageService.eliminarImagen(servicio.getImagenUrl());
@@ -239,76 +288,23 @@ public class ServicioController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Obtener un servicio por ID (Público)
-     */
-    @GetMapping("/{id}")
-    public ResponseEntity<ServicioResponseDTO> obtenerServicioPorId(
-            @PathVariable Integer id) {
-
-        Servicio servicio = servicioService.obtenerServicioPorId(id);
-        List<Portafolio> portafolios = portafolioService.obtenerPortafoliosPorServicio(id);
-
-        return ResponseEntity.ok(mapper.toResponseDTOWithPortafolios(
-                servicio, portafolios, portafolioMapper));
-    }
-
-    /**
-     * Obtener mis servicios (Autenticado - TRABAJADOR)
-     */
-    @GetMapping("/mis-servicios")
-    public ResponseEntity<List<ServicioResponseDTO>> obtenerMisServicios(
-            Authentication authentication) {
-
-        Integer usuarioId = obtenerUsuarioIdDeAuth(authentication);
-        List<Servicio> servicios = servicioService.obtenerServiciosPorUsuario(usuarioId);
-        List<ServicioResponseDTO> response = servicios.stream()
-                .map(servicio -> {
-                    List<Portafolio> portafolios = portafolioService
-                            .obtenerPortafoliosPorServicio(servicio.getId());
-                    return mapper.toResponseDTOWithPortafolios(servicio, portafolios, portafolioMapper);
-                })
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping
-    public ResponseEntity<List<ServicioResponseDTO>> obtenerTodosLosServicios() {
-        List<Servicio> servicios = servicioService.obtenerTodosLosServicios();
-
-        List<ServicioResponseDTO> response = servicios.stream()
-                .map(servicio -> {
-                    List<Portafolio> portafolios = portafolioService
-                            .obtenerPortafoliosPorServicio(servicio.getId());
-                    return mapper.toResponseDTOWithPortafolios(servicio, portafolios, portafolioMapper);
-                })
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(response);
-    }
-    // ===== MÉTODOS AUXILIARES =====
-
     private Integer obtenerUsuarioIdDeAuth(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new RuntimeException("Usuario no autenticado");
+        if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
+            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
+            String gmail = userDetails.getUsername();
+            return usuarioService.buscarPorGmail(gmail)
+                    .map(Usuario::getId)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
         }
-
-        // Obtenemos el gmail del UserDetails (username)
-        String gmail = authentication.getName();
-
-        // Buscamos el usuario en la DB
-        Usuario usuario = usuarioService.buscarPorGmail(gmail)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        return usuario.getId();
+        throw new RuntimeException("Usuario no autenticado");
     }
+
     private String mapearPermiso(Integer permiso) {
-        return switch (permiso) {
-            case 0 -> "CLIENTE";
-            case 1 -> "ADMIN";
-            case 2 -> "TRABAJADOR";
-            default -> "DESCONOCIDO";
-        };
+        switch (permiso) {
+            case 1: return "ADMIN";
+            case 2: return "TRABAJADOR";
+            case 3: return "USUARIO";
+            default: return "DESCONOCIDO";
+        }
     }
 }

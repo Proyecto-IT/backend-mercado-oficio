@@ -6,204 +6,280 @@ import com.proyecto_it.mercado_oficio.Domain.Repository.OficioRepository;
 import com.proyecto_it.mercado_oficio.Domain.Repository.PortafolioRepository;
 import com.proyecto_it.mercado_oficio.Domain.Repository.ServicioRepository;
 import com.proyecto_it.mercado_oficio.Domain.Repository.UsuarioRepository;
+import com.proyecto_it.mercado_oficio.Domain.Service.FilesStorage.FileStorageService;
+import com.proyecto_it.mercado_oficio.Domain.Service.Servicio.Portafolio.PortafolioService;
+import com.proyecto_it.mercado_oficio.Domain.Service.Usuario.UsuarioCacheService;
+import com.proyecto_it.mercado_oficio.Domain.Service.Usuario.UsuarioService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 import java.util.List;
-@Slf4j
+
 @Service
+@Transactional
 @RequiredArgsConstructor
+@Slf4j
 public class ServicioServiceImpl implements ServicioService {
 
     private final ServicioRepository servicioRepository;
-    private final UsuarioRepository usuarioRepository; // Necesitarás inyectar esto
-    private final OficioRepository oficioRepository; // Necesitarás inyectar esto
-    private final PortafolioRepository portafolioRepository;
+    private final ServicioCacheService cacheService;
+    private final UsuarioService usuarioService;
+    private final FileStorageService fileStorageService;
+    private final PortafolioService portafolioService;
 
     @Override
-    @Transactional
-    public Servicio crearServicio(Servicio servicio, String imagenUrl) {
-        servicio.validar();
+    public Servicio crearServicio(Servicio servicio, MultipartFile imagen) {
+        try {
+            log.info("📝 Creando servicio para usuario {}", servicio.getUsuarioId());
 
-        // Validar que el oficio existe
-        validarOficioExiste(servicio.getOficioId());
-
-        // Guardar la imagen en el usuario si se proporciona
-        if (imagenUrl != null && !imagenUrl.trim().isEmpty()) {
-            actualizarImagenUsuario(servicio.getUsuarioId(), imagenUrl);
-        }
-
-        // 🔥 CAMBIAR PERMISO DEL USUARIO A TRABAJADOR (2) SI AÚN NO LO ES
-        cambiarPermisoATrabajador(servicio.getUsuarioId());
-
-        return servicioRepository.save(servicio);
-    }
-
-    // NUEVO MÉTODO: Crear servicio con portafolios
-    @Transactional
-    public Servicio crearServicioConPortafolios(Servicio servicio, String imagenUrl, List<Portafolio> portafolios) {
-        // Crear el servicio primero (esto ya cambia el permiso)
-        Servicio servicioCreado = crearServicio(servicio, imagenUrl);
-
-        // Crear los portafolios asociados si existen
-        if (portafolios != null && !portafolios.isEmpty()) {
-            for (Portafolio portafolio : portafolios) {
-                Portafolio portafolioConServicio = Portafolio.builder()
-                        .servicioId(servicioCreado.getId())
-                        .titulo(portafolio.getTitulo())
-                        .descripcion(portafolio.getDescripcion())
+            // 1. Guardar imagen si existe
+            if (imagen != null && !imagen.isEmpty()) {
+                String imagenUrl = fileStorageService.guardarImagen(imagen);
+                servicio = Servicio.builder()
+                        .usuarioId(servicio.getUsuarioId())
+                        .oficioId(servicio.getOficioId())
+                        .descripcion(servicio.getDescripcion())
+                        .tarifaHora(servicio.getTarifaHora())
+                        .disponibilidad(servicio.getDisponibilidad())
+                        .experiencia(servicio.getExperiencia())
+                        .especialidades(servicio.getEspecialidades())
+                        .ubicacion(servicio.getUbicacion())
+                        .trabajosCompletados(servicio.getTrabajosCompletados())
+                        .imagenUrl(imagenUrl)
                         .build();
-                portafolioConServicio.validar();
-                portafolioRepository.save(portafolioConServicio);
             }
-        }
 
-        return servicioCreado;
+            // 2. Guardar servicio en DB
+            Servicio servicioGuardado = servicioRepository.save(servicio);
+
+            // 🔥 VALIDACIÓN CRÍTICA: Verificar que el servicio guardado tiene ID
+            if (servicioGuardado == null || servicioGuardado.getId() == null) {
+                throw new RuntimeException("Error: El servicio no se guardó correctamente en la base de datos");
+            }
+
+            log.info("✅ Servicio {} guardado en DB", servicioGuardado.getId());
+
+            // 3. Actualizar permiso del usuario si es necesario
+            Usuario usuario = usuarioService.buscarPorId(servicio.getUsuarioId())
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+            if (usuario.getPermiso() == 3) {
+                log.info("🔄 Usuario {} necesita cambio de permiso (de 3 a 2)", usuario.getId());
+                usuarioService.modificarPermisoUsuario(usuario.getId(), 2);
+            } else {
+                log.info("ℹ️ Usuario {} ya tiene permiso {} (no se requiere cambio)",
+                        usuario.getId(), usuario.getPermiso());
+            }
+
+            // 4. Sincronizar cache DESPUÉS de tener el ID
+            cacheService.sincronizarDespuesDeCrear(servicioGuardado);
+
+            return servicioGuardado;
+
+        } catch (Exception e) {
+            log.error("❌ Error al crear servicio: {}", e.getMessage(), e);
+            throw new RuntimeException("Error al crear servicio: " + e.getMessage(), e);
+        }
     }
 
     @Override
-    @Transactional
-    public Servicio actualizarServicio(Integer id, Servicio servicioActualizado, String imagenUrl) {
-        Servicio servicioExistente = servicioRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Servicio no encontrado"));
+    public Servicio crearServicioConPortafolios(Servicio servicio, MultipartFile imagen,
+                                                List<Portafolio> portafolios) {
+        try {
+            log.info("📝 Creando servicio CON portafolios para usuario {}", servicio.getUsuarioId());
 
-        // Validar permisos
-        validarPermisos(id, servicioActualizado.getUsuarioId());
+            // 1. Crear el servicio primero
+            Servicio servicioGuardado = crearServicio(servicio, imagen);
 
-        // Construir servicio actualizado solo con los campos proporcionados
-        Servicio.ServicioBuilder builder = Servicio.builder()
-                .id(id)
-                .usuarioId(servicioExistente.getUsuarioId())
-                .oficioId(servicioActualizado.getOficioId() != null ?
-                        servicioActualizado.getOficioId() : servicioExistente.getOficioId())
-                .descripcion(servicioActualizado.getDescripcion() != null ?
-                        servicioActualizado.getDescripcion() : servicioExistente.getDescripcion())
-                .tarifaHora(servicioActualizado.getTarifaHora() != null ?
-                        servicioActualizado.getTarifaHora() : servicioExistente.getTarifaHora())
-                .disponibilidad(servicioActualizado.getDisponibilidad() != null ?
-                        servicioActualizado.getDisponibilidad() : servicioExistente.getDisponibilidad())
-                .experiencia(servicioActualizado.getExperiencia() != null ?
-                        servicioActualizado.getExperiencia() : servicioExistente.getExperiencia())
-                .especialidades(servicioActualizado.getEspecialidades() != null ?
-                        servicioActualizado.getEspecialidades() : servicioExistente.getEspecialidades())
-                .ubicacion(servicioActualizado.getUbicacion() != null ?
-                        servicioActualizado.getUbicacion() : servicioExistente.getUbicacion())
-                .trabajosCompletados(servicioExistente.getTrabajosCompletados());
+            // 🔥 VALIDACIÓN: Asegurar que tenemos ID antes de continuar
+            if (servicioGuardado.getId() == null) {
+                throw new RuntimeException("Error: El servicio no tiene ID después de guardarlo");
+            }
 
-        Servicio servicioFinal = builder.build();
-        servicioFinal.validar();
+            // 2. Guardar portafolios asociados al servicio
+            if (portafolios != null && !portafolios.isEmpty()) {
+                for (Portafolio portafolio : portafolios) {
+                    Portafolio portafolioConServicio = Portafolio.builder()
+                            .servicioId(servicioGuardado.getId())
+                            .titulo(portafolio.getTitulo())
+                            .descripcion(portafolio.getDescripcion())
+                            .build();
 
-        // Actualizar imagen si se proporciona
-        if (imagenUrl != null && !imagenUrl.trim().isEmpty()) {
-            actualizarImagenUsuario(servicioExistente.getUsuarioId(), imagenUrl);
+                    portafolioService.crearPortafolio(portafolioConServicio);
+                }
+                log.info("✅ {} portafolios creados para servicio {}",
+                        portafolios.size(), servicioGuardado.getId());
+            }
+
+            return servicioGuardado;
+
+        } catch (Exception e) {
+            log.error("❌ Error al crear servicio con portafolios: {}", e.getMessage(), e);
+            throw new RuntimeException("Error al crear servicio con portafolios: " + e.getMessage(), e);
         }
-
-        return servicioRepository.save(servicioFinal);
     }
 
-    // NUEVO MÉTODO: Actualizar servicio con portafolios
-    @Transactional
-    public Servicio actualizarServicioConPortafolios(Integer id, Servicio servicioActualizado,
-                                                     String imagenUrl, List<Portafolio> portafolios) {
-        // Actualizar el servicio
-        Servicio servicioGuardado = actualizarServicio(id, servicioActualizado, imagenUrl);
+    @Override
+    public Servicio actualizarServicio(Integer id, Servicio servicio, MultipartFile imagen) {
+        try {
+            log.info("🔄 Actualizando servicio {}", id);
 
-        // Si se envían portafolios, reemplazar los existentes
-        if (portafolios != null) {
-            // Eliminar portafolios antiguos
-            portafolioRepository.deleteAllByServicioId(id);
+            // Obtener servicio anterior para sincronización de cache
+            Servicio servicioAnterior = servicioRepository.findByIdWithDetails(id)
+                    .orElseThrow(() -> new RuntimeException("Servicio no encontrado"));
 
-            // Crear los nuevos portafolios
-            if (!portafolios.isEmpty()) {
+            // Actualizar imagen si se proporciona una nueva
+            String imagenUrl = servicioAnterior.getImagenUrl();
+            if (imagen != null && !imagen.isEmpty()) {
+                if (imagenUrl != null) {
+                    fileStorageService.eliminarImagen(imagenUrl);
+                }
+                imagenUrl = fileStorageService.guardarImagen(imagen);
+            }
+
+            // Construir servicio actualizado
+            Servicio servicioActualizado = Servicio.builder()
+                    .id(id)
+                    .usuarioId(servicioAnterior.getUsuarioId())
+                    .oficioId(servicio.getOficioId())
+                    .descripcion(servicio.getDescripcion())
+                    .tarifaHora(servicio.getTarifaHora())
+                    .disponibilidad(servicio.getDisponibilidad())
+                    .experiencia(servicio.getExperiencia())
+                    .especialidades(servicio.getEspecialidades())
+                    .ubicacion(servicio.getUbicacion())
+                    .trabajosCompletados(servicioAnterior.getTrabajosCompletados())
+                    .imagenUrl(imagenUrl)
+                    .build();
+
+            // Guardar cambios
+            Servicio servicioGuardado = servicioRepository.save(servicioActualizado);
+
+            // 🔥 VALIDACIÓN
+            if (servicioGuardado == null || servicioGuardado.getId() == null) {
+                throw new RuntimeException("Error al actualizar servicio en la base de datos");
+            }
+
+            // Sincronizar cache
+            cacheService.sincronizarDespuesDeActualizar(servicioAnterior, servicioGuardado);
+
+            log.info("✅ Servicio {} actualizado correctamente", id);
+            return servicioGuardado;
+
+        } catch (Exception e) {
+            log.error("❌ Error al actualizar servicio {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Error al actualizar servicio: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Servicio actualizarServicioConPortafolios(Integer id, Servicio servicio,
+                                                     MultipartFile imagen,
+                                                     List<Portafolio> portafolios) {
+        try {
+            log.info("🔄 Actualizando servicio {} CON portafolios", id);
+
+            // Actualizar servicio
+            Servicio servicioActualizado = actualizarServicio(id, servicio, imagen);
+
+            // Actualizar portafolios
+            if (portafolios != null) {
+                // Eliminar portafolios anteriores
+                List<Portafolio> portafoliosAnteriores = portafolioService
+                        .obtenerPortafoliosPorServicio(id);
+
+                for (Portafolio p : portafoliosAnteriores) {
+                    portafolioService.eliminarPortafolio(p.getId());
+                }
+
+                // Crear nuevos portafolios
                 for (Portafolio portafolio : portafolios) {
                     Portafolio nuevoPortafolio = Portafolio.builder()
                             .servicioId(id)
                             .titulo(portafolio.getTitulo())
                             .descripcion(portafolio.getDescripcion())
                             .build();
-                    nuevoPortafolio.validar();
-                    portafolioRepository.save(nuevoPortafolio);
+
+                    portafolioService.crearPortafolio(nuevoPortafolio);
                 }
+
+                log.info("✅ {} portafolios actualizados para servicio {}",
+                        portafolios.size(), id);
             }
+
+            return servicioActualizado;
+
+        } catch (Exception e) {
+            log.error("❌ Error al actualizar servicio con portafolios {}: {}",
+                    id, e.getMessage(), e);
+            throw new RuntimeException("Error al actualizar servicio con portafolios: " +
+                    e.getMessage(), e);
         }
-
-        return servicioGuardado;
     }
 
     @Override
-    @Transactional
     public void eliminarServicio(Integer id, Integer usuarioId) {
-        validarPermisos(id, usuarioId);
-        servicioRepository.deleteById(id);
+        try {
+            log.info("🗑️ Eliminando servicio {}", id);
+
+            Servicio servicio = servicioRepository.findByIdWithDetails(id)
+                    .orElseThrow(() -> new RuntimeException("Servicio no encontrado"));
+
+            validarPermisos(id, usuarioId);
+
+            // Eliminar imagen si existe
+            if (servicio.getImagenUrl() != null) {
+                fileStorageService.eliminarImagen(servicio.getImagenUrl());
+            }
+
+            // Eliminar servicio
+            servicioRepository.deleteById(id);
+
+            // Sincronizar cache
+            cacheService.sincronizarDespuesDeEliminar(servicio);
+
+            log.info("✅ Servicio {} eliminado correctamente", id);
+
+        } catch (Exception e) {
+            log.error("❌ Error al eliminar servicio {}: {}", id, e.getMessage(), e);
+            throw new RuntimeException("Error al eliminar servicio: " + e.getMessage(), e);
+        }
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Servicio obtenerServicioPorId(Integer id) {
-        return servicioRepository.findByIdWithDetails(id)
-                .orElseThrow(() -> new IllegalArgumentException("Servicio no encontrado"));
+        log.info("🔍 Obteniendo servicio {}", id);
+        return cacheService.obtenerServicioPorIdCached(id)
+                .orElseThrow(() -> new RuntimeException("Servicio no encontrado"));
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Servicio> obtenerServiciosPorUsuario(Integer usuarioId) {
-        return servicioRepository.findByUsuarioId(usuarioId);
+        log.info("🔍 Obteniendo servicios del usuario {}", usuarioId);
+        return cacheService.obtenerServiciosPorUsuarioCached(usuarioId);
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Servicio> obtenerServiciosPorOficio(Integer oficioId) {
-        return servicioRepository.findByOficioId(oficioId);
+        log.info("🔍 Obteniendo servicios del oficio {}", oficioId);
+        return cacheService.obtenerServiciosPorOficioCached(oficioId);
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<Servicio> obtenerTodosLosServicios() {
-        return servicioRepository.findAll();
+        log.info("🔍 Obteniendo todos los servicios desde cache");
+        return cacheService.obtenerTodosLosServiciosCached();
     }
 
     @Override
     public void validarPermisos(Integer servicioId, Integer usuarioId) {
-        Servicio servicio = servicioRepository.findById(servicioId)
-                .orElseThrow(() -> new IllegalArgumentException("Servicio no encontrado"));
-
+        Servicio servicio = obtenerServicioPorId(servicioId);
         if (!servicio.getUsuarioId().equals(usuarioId)) {
-            throw new SecurityException("No tiene permisos para modificar este servicio");
+            throw new RuntimeException("No tienes permisos para modificar este servicio");
         }
     }
-
-    private void validarOficioExiste(Integer oficioId) {
-        // Implementar validación de que el oficio existe
-        // if (!oficioRepository.existsById(oficioId)) throw new Exception...
-    }
-
-    private void actualizarImagenUsuario(Integer usuarioId, String imagenUrl) {
-        Usuario usuario = usuarioRepository.buscarPorId(usuarioId)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
-        usuario.setImagenUrl(imagenUrl);
-        usuarioRepository.guardar(usuario);
-
-        log.info("✅ Imagen actualizada para usuario {}: {}", usuarioId, imagenUrl);
-    }
-    // 🔥 NUEVO: Método para cambiar permiso a TRABAJADOR
-    private void cambiarPermisoATrabajador(Integer usuarioId) {
-        Usuario usuario = usuarioRepository.buscarPorId(usuarioId)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con ID: " + usuarioId));
-
-        // Solo cambiar si no es ya TRABAJADOR (2) o ADMIN (3)
-        if (usuario.getPermiso() < 2) {
-            log.info("🔄 Cambiando permiso de usuario {} de {} a TRABAJADOR (2)",
-                    usuarioId, usuario.getPermiso());
-
-            usuarioRepository.modificarPermisoUsuario(usuarioId, 2);
-
-            log.info("✅ Permiso actualizado correctamente en BD");
-        } else {
-            log.info("ℹ️ Usuario {} ya tiene permiso {} (no se requiere cambio)",
-                    usuarioId, usuario.getPermiso());
-        }
-    }
-
 }

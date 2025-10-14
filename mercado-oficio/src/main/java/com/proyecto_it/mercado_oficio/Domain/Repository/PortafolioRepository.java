@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PortafolioRepository {
-    Portafolio save(Portafolio portafolio);
-    Optional<Portafolio> findById(Integer id);
     List<Portafolio> findByServicioId(Integer servicioId);
+    Optional<Portafolio> findById(Integer id);
+    Portafolio save(Portafolio portafolio);
     void deleteById(Integer id);
-    void deleteAllByServicioId(Integer servicioId);
+    boolean existsById(Integer id);
 }

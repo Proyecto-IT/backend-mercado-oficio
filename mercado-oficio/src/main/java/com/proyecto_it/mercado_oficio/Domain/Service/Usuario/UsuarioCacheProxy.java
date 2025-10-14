@@ -19,44 +19,81 @@ public class UsuarioCacheProxy {
     private final UsuarioRepository usuarioRepository;
     private final UsuarioCacheService cacheService;
 
-    @PostConstruct
+    //@PostConstruct
     public void inicializarCache() {
-        log.info("Inicializando caché de usuarios...");
+        log.info("🚀 Inicializando caché de usuarios...");
         precargarUsuarios();
     }
 
+    /**
+     * Precarga TODOS los usuarios en cache al inicio
+     */
     public void precargarUsuarios() {
         try {
             List<Usuario> todosLosUsuarios = usuarioRepository.findAll();
-            cacheService.actualizarListaCompleta(todosLosUsuarios);
 
-            for (Usuario usuario : todosLosUsuarios) {
-                cacheService.actualizarUsuarioEnCache(usuario);
+            if (todosLosUsuarios.isEmpty()) {
+                log.info("ℹ️ No hay usuarios para precargar en caché");
+                return;
             }
 
-            log.info("Caché de usuarios inicializado con {} usuarios", todosLosUsuarios.size());
+            log.info("📊 Precargando {} usuarios en caché...", todosLosUsuarios.size());
+
+            // 1. Cachear cada usuario individualmente (por ID y por Gmail)
+            for (Usuario usuario : todosLosUsuarios) {
+                cacheService.cachearUsuario(usuario);
+            }
+
+            // 2. Cachear lista completa
+            cacheService.cachearTodosLosUsuarios(todosLosUsuarios);
+
+            log.info("✅ Caché de usuarios inicializado exitosamente con {} usuarios",
+                    todosLosUsuarios.size());
+
         } catch (Exception e) {
-            log.error("Error al inicializar caché de usuarios: {}", e.getMessage(), e);
+            log.error("❌ Error al inicializar caché de usuarios: {}", e.getMessage(), e);
         }
     }
 
+    /**
+     * Recarga todo el cache desde cero
+     */
     public void recargarCacheCompleto() {
-        log.info("Recargando caché completo de usuarios...");
+        log.info("🔄 Recargando caché completo de usuarios...");
         precargarUsuarios();
     }
 
+    /**
+     * Precarga un usuario específico
+     */
     public void precargarUsuario(String gmail) {
         try {
             Optional<Usuario> usuarioOpt = usuarioRepository.buscarPorGmail(gmail);
             if (usuarioOpt.isPresent()) {
-                cacheService.actualizarUsuarioEnCache(usuarioOpt.get());
-                log.info("Usuario '{}' precargado en caché correctamente", gmail);
+                cacheService.cachearUsuario(usuarioOpt.get());
+                log.info("✅ Usuario '{}' precargado en caché", gmail);
             } else {
-                log.warn("Usuario '{}' no encontrado para precargar en caché", gmail);
+                log.warn("⚠️ Usuario '{}' no encontrado para precargar", gmail);
             }
         } catch (Exception e) {
-            log.error("Error al precargar usuario '{}': {}", gmail, e.getMessage(), e);
+            log.error("❌ Error al precargar usuario '{}': {}", gmail, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Precarga un usuario por ID
+     */
+    public void precargarUsuarioPorId(int id) {
+        try {
+            Optional<Usuario> usuarioOpt = usuarioRepository.buscarPorId(id);
+            if (usuarioOpt.isPresent()) {
+                cacheService.cachearUsuario(usuarioOpt.get());
+                log.info("✅ Usuario con ID {} precargado en caché", id);
+            } else {
+                log.warn("⚠️ Usuario con ID {} no encontrado para precargar", id);
+            }
+        } catch (Exception e) {
+            log.error("❌ Error al precargar usuario con ID {}: {}", id, e.getMessage(), e);
         }
     }
 }
-

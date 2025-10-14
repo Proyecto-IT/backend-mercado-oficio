@@ -50,6 +50,24 @@ public class UsuarioEntity {
     @Column(nullable = false, length = 20)
     private String telefono;
 
-    @Column(name = "imagen_url")
-    private String imagenUrl;
+    @Lob // Indica que es un Large Object (BLOB)
+    @Basic(fetch = FetchType.LAZY) // Carga lazy para no traer siempre el BLOB
+    @Column(name = "imagen", columnDefinition = "LONGBLOB")
+    private byte[] imagen;
+
+    @Column(name = "imagen_tipo", length = 50)
+    private String imagenTipo;
+
+    public boolean tieneImagen() {
+        return imagen != null && imagen.length > 0;
+    }
+
+    public long getTamanoImagen() {
+        return imagen != null ? imagen.length : 0;
+    }
+
+    public void eliminarImagen() {
+        this.imagen = null;
+        this.imagenTipo = null;
+    }
 }

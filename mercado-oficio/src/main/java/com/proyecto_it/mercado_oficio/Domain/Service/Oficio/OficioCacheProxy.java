@@ -22,7 +22,7 @@ public class OficioCacheProxy {
      * Inicializa el cache al arrancar la aplicación.
      * Precarga todos los oficios en memoria para mejorar el rendimiento.
      */
-    @PostConstruct
+    //@PostConstruct
     public void inicializarCache() {
         log.info("=== Inicializando caché de oficios al arranque ===");
         precargarOficios();
@@ -40,7 +40,7 @@ public class OficioCacheProxy {
 
             // Precargar cada oficio individualmente (por nombre e ID)
             for (Oficio oficio : todosLosOficios) {
-                cacheService.actualizarOficioEnCache(oficio);
+                cacheService.cachearOficio(oficio);
             }
 
             // La lista completa se cacheará automáticamente en el primer GET
@@ -60,7 +60,7 @@ public class OficioCacheProxy {
         log.info("Recargando caché completo de oficios desde BD...");
 
         // Limpiar todo el cache antes de recargar
-        cacheService.invalidarListaCompleta();
+        cacheService.evictTodosLosOficios();
 
         // Precargar nuevamente
         precargarOficios();
@@ -79,7 +79,7 @@ public class OficioCacheProxy {
 
             if (oficioOpt.isPresent()) {
                 Oficio oficio = oficioOpt.get();
-                cacheService.actualizarOficioEnCache(oficio);
+                cacheService.cachearOficio(oficio);
                 log.info("✓ Oficio precargado en caché: id={}, nombre={}", id, oficio.getNombre());
             } else {
                 log.warn("⚠ No se encontró oficio con id={} para precargar", id);
@@ -100,7 +100,7 @@ public class OficioCacheProxy {
 
             if (!oficios.isEmpty()) {
                 for (Oficio oficio : oficios) {
-                    cacheService.actualizarOficioEnCache(oficio);
+                    cacheService.cachearOficio(oficio);
                 }
                 log.info("✓ {} oficio(s) con nombre '{}' precargado(s) en caché", oficios.size(), nombre);
             } else {

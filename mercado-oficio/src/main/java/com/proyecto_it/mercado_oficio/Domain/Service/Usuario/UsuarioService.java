@@ -3,6 +3,7 @@ package com.proyecto_it.mercado_oficio.Domain.Service.Usuario;
 import com.proyecto_it.mercado_oficio.Domain.Model.Usuario;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Usuario.CambioPasswordRequest;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Usuario.UsuarioUpdate;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
@@ -22,6 +23,9 @@ public interface UsuarioService {
     void vincularGoogleAUsuario(String gmail);
     Usuario establecerPasswordLocalAUsuario(String gmail, String password);
     boolean puedeUsarMetodoAutenticacion(String gmail, String metodo);
+    boolean actualizarImagenPerfil(String gmail, MultipartFile imagen);
+    boolean eliminarImagenPerfil(String gmail);
+    boolean tieneImagenPerfil(String gmail);
 }
 
 

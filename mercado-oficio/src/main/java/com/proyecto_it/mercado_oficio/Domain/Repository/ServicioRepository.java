@@ -12,7 +12,7 @@ public interface ServicioRepository {
     List<Servicio> findByOficioId(Integer oficioId);
     List<Servicio> findAll();
     void deleteById(Integer id);
-    boolean existsByUsuarioId(Integer usuarioId);
     Optional<Servicio> findByIdWithDetails(Integer id);
     boolean existsById(Integer id);
-}
+
+    }

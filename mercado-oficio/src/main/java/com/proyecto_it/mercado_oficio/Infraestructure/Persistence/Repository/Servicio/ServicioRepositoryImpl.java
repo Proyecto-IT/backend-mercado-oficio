@@ -14,66 +14,42 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-@Slf4j
+
 @Repository
 @RequiredArgsConstructor
+@Slf4j
 public class ServicioRepositoryImpl implements ServicioRepository {
 
     private final JpaServicioRepository jpaRepository;
-    private final JpaUsuarioRepository jpaUsuarioRepository;
+    private final JpaUsuarioRepository usuarioJpaRepository; // 🔥 NECESARIO para obtener UsuarioEntity
     private final ServicioMapper mapper;
-    private final OficioRepository oficioRepository;
-
-    @Override
-    public Servicio save(Servicio servicio) {
-        log.info("💾 Guardando servicio para usuarioId={}", servicio.getUsuarioId());
-
-        UsuarioEntity usuarioEntity = jpaUsuarioRepository.findById(servicio.getUsuarioId())
-                .orElseThrow(() -> {
-                    log.error("❌ Usuario con ID {} no encontrado", servicio.getUsuarioId());
-                    return new RuntimeException("Usuario no encontrado con ID: " + servicio.getUsuarioId());
-                });
-
-        log.info("✅ Usuario encontrado: {}", usuarioEntity.getGmail());
-
-        ServicioEntity entity = mapper.toEntity(servicio, usuarioEntity);
-
-        log.info("🔍 Entity preparada: usuarioId={}, oficioId={}",
-                entity.getUsuario().getId(), entity.getOficioId());
-
-        ServicioEntity savedEntity = jpaRepository.save(entity);
-
-        log.info("✅ Servicio guardado con ID={}", savedEntity.getId());
-
-        return mapper.toDomain(savedEntity);
-    }
 
     @Override
     public Optional<Servicio> findById(Integer id) {
-        log.info("🔍 Buscando servicio por ID={}", id);
+        log.info("🔍 Buscando servicio por ID: {}", id);
         return jpaRepository.findById(id)
                 .map(mapper::toDomain);
     }
 
     @Override
     public Optional<Servicio> findByIdWithDetails(Integer id) {
-        log.info("🔍 Buscando servicio con detalles por ID={}", id);
-        return jpaRepository.findByIdWithDetails(id) // asumir que JpaRepositorio tiene fetch join
+        log.info("🔍 Buscando servicio {} con detalles (usuario y oficio)", id);
+        return jpaRepository.findByIdWithUsuario(id)
                 .map(mapper::toDomain);
     }
 
     @Override
     public List<Servicio> findByUsuarioId(Integer usuarioId) {
-        log.info("🔍 Buscando servicios por usuarioId={}", usuarioId);
-        return jpaRepository.findByUsuarioId(usuarioId).stream()
+        log.info("🔍 Buscando servicios del usuario {}", usuarioId);
+        return jpaRepository.findByUsuarioIdWithUsuario(usuarioId).stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<Servicio> findByOficioId(Integer oficioId) {
-        log.info("🔍 Buscando servicios por oficioId={}", oficioId);
-        return jpaRepository.findByOficioId(oficioId).stream()
+        log.info("🔍 Buscando servicios del oficio {}", oficioId);
+        return jpaRepository.findByOficioIdWithUsuario(oficioId).stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
     }
@@ -81,29 +57,79 @@ public class ServicioRepositoryImpl implements ServicioRepository {
     @Override
     public List<Servicio> findAll() {
         log.info("🔍 Buscando todos los servicios");
-        return jpaRepository.findAll().stream()
+        return jpaRepository.findAllWithUsuarios().stream()
                 .map(mapper::toDomain)
                 .collect(Collectors.toList());
     }
 
     @Override
+    public Servicio save(Servicio servicio) {
+        try {
+            log.info("💾 Guardando servicio para usuario {}", servicio.getUsuarioId());
+
+            // 1. Obtener el UsuarioEntity
+            UsuarioEntity usuarioEntity = usuarioJpaRepository.findById(servicio.getUsuarioId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "Usuario no encontrado: " + servicio.getUsuarioId()));
+
+            // 2. Convertir Domain a Entity
+            ServicioEntity servicioEntity;
+
+            if (servicio.getId() != null) {
+                // Actualización: buscar entity existente
+                log.info("📝 Actualizando servicio existente con ID: {}", servicio.getId());
+                servicioEntity = jpaRepository.findById(servicio.getId())
+                        .orElseThrow(() -> new RuntimeException(
+                                "Servicio no encontrado: " + servicio.getId()));
+
+                // Actualizar campos
+                servicioEntity.setUsuario(usuarioEntity);
+                servicioEntity.setOficioId(servicio.getOficioId());
+                servicioEntity.setDescripcion(servicio.getDescripcion());
+                servicioEntity.setTarifaHora(servicio.getTarifaHora() != null ?
+                        servicio.getTarifaHora().toString() : null);
+                servicioEntity.setDisponibilidad(mapper.serializeDisponibilidad(servicio.getDisponibilidad()));
+                servicioEntity.setExperiencia(servicio.getExperiencia());
+                servicioEntity.setEspecialidades(mapper.serializeEspecialidades(servicio.getEspecialidades()));
+                servicioEntity.setUbicacion(servicio.getUbicacion());
+                servicioEntity.setTrabajosCompletados(servicio.getTrabajosCompletados());
+
+            } else {
+                // Creación: nueva entity
+                log.info("✨ Creando nuevo servicio");
+                servicioEntity = mapper.toEntity(servicio, usuarioEntity);
+            }
+
+            // 3. Guardar en DB
+            ServicioEntity servicioGuardado = jpaRepository.save(servicioEntity);
+
+            log.info("✅ Servicio guardado con ID: {}", servicioGuardado.getId());
+
+            // 4. Convertir Entity a Domain
+            return mapper.toDomain(servicioGuardado);
+
+        } catch (Exception e) {
+            log.error("❌ Error al guardar servicio: {}", e.getMessage(), e);
+            throw new RuntimeException("Error al guardar servicio: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public void deleteById(Integer id) {
-        log.info("🗑️ Eliminando servicio con ID={}", id);
+        log.info("🗑️ Eliminando servicio {}", id);
+
+        if (!jpaRepository.existsById(id)) {
+            throw new RuntimeException("Servicio no encontrado: " + id);
+        }
+
         jpaRepository.deleteById(id);
-        log.info("✅ Servicio eliminado");
+        log.info("✅ Servicio {} eliminado", id);
     }
 
     @Override
     public boolean existsById(Integer id) {
         boolean exists = jpaRepository.existsById(id);
-        log.info("❔ Verificando existencia servicio ID={} => {}", id, exists);
-        return exists;
-    }
-
-    @Override
-    public boolean existsByUsuarioId(Integer usuarioId) {
-        boolean exists = jpaRepository.existsByUsuarioId(usuarioId);
-        log.info("❔ Verificando existencia servicios para usuarioId={} => {}", usuarioId, exists);
+        log.info("🔍 Servicio {} existe: {}", id, exists);
         return exists;
     }
 }

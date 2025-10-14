@@ -15,21 +15,22 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ServicioResponseDTO {
-
     private Integer id;
     private Integer usuarioId;
     private Integer oficioId;
-    private String nombreOficio; // Nombre del oficio
+    private String nombreOficio;
     private String descripcion;
     private BigDecimal tarifaHora;
     private Map<String, String> disponibilidad;
-    private Integer experiencia;
+    private int experiencia;
     private List<String> especialidades;
     private String ubicacion;
-    private Integer trabajosCompletados;
-    private String imagenUrl; // URL de imagen del usuario
-    private List<PortafolioResponseDTO> portafolios;
+    private int trabajosCompletados;
     private String nombreTrabajador;
     private String apellidoTrabajador;
     private String emailTrabajador;
+    private String imagenUsuario; // Base64
+    private String imagenUsuarioTipo; // image/jpeg, image/png, etc.
+
+    private List<PortafolioResponseDTO> portafolios;
 }

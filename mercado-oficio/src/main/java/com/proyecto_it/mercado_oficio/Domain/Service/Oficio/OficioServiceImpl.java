@@ -35,7 +35,7 @@ public class OficioServiceImpl implements OficioService {
             log.info("Oficio creado exitosamente: id={}, nombre={}", creado.getId(), creado.getNombre());
 
             // Actualizar cache: agrega el nuevo oficio e invalida la lista completa
-            cacheService.actualizarOficioEnCache(creado);
+            cacheService.cachearOficio(creado);
 
             return creado;
         } catch (IllegalArgumentException e) {

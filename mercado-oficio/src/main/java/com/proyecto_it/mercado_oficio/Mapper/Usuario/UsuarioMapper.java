@@ -24,6 +24,8 @@ public class UsuarioMapper {
                 .cp(entity.getCp())
                 .ciudad(entity.getCiudad())
                 .telefono(entity.getTelefono())
+                .imagen(entity.getImagen())
+                .imagenTipo(entity.getImagenTipo())
                 .build();
     }
 
@@ -43,6 +45,8 @@ public class UsuarioMapper {
                 .cp(domain.getCp())
                 .ciudad(domain.getCiudad())
                 .telefono(domain.getTelefono())
+                .imagen(domain.getImagen())
+                .imagenTipo(domain.getImagenTipo())
                 .build();
     }
 

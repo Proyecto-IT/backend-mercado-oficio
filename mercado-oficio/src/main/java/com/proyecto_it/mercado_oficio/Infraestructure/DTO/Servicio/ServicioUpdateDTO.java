@@ -77,4 +77,6 @@ public class ServicioUpdateDTO {
         return disponibilidad.keySet().stream()
                 .allMatch(dia -> diasValidos.contains(dia.toLowerCase()));
     }
+    private String imagenOpcion;
+
 }
