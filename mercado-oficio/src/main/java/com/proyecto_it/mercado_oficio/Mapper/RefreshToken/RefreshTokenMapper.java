@@ -7,10 +7,6 @@ import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Repository.Ref
 import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Repository.Usuario.JpaUsuarioRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingConstants;
-import org.mapstruct.ReportingPolicy;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -25,9 +21,7 @@ public class RefreshTokenMapper {
 
     private final JpaUsuarioRepository usuarioRepository;
     private final JpaRefreshTokenRepository jpaRefreshTokenRepository;
-    /**
-     * Convierte de entidad JPA a dominio
-     */
+
     public RefreshToken toDomain(RefreshTokenEntity entity) {
         if (entity == null) {
             return null;
@@ -43,10 +37,6 @@ public class RefreshTokenMapper {
                 .build();
     }
 
-    /**
-     * Convierte de dominio a entidad JPA
-     * 🔥 IMPORTANTE: Si el token tiene ID, carga la entidad existente para actualizar
-     */
     public RefreshTokenEntity toEntity(RefreshToken domain) {
         if (domain == null) {
             return null;
@@ -54,7 +44,6 @@ public class RefreshTokenMapper {
 
         RefreshTokenEntity entity;
 
-        // 🔥 Si el token ya existe (tiene ID), actualizar la entidad existente
         if (domain.getId() != null) {
             entity = jpaRefreshTokenRepository.findById(domain.getId())
                     .orElseGet(RefreshTokenEntity::new);
@@ -62,13 +51,11 @@ public class RefreshTokenMapper {
             entity = new RefreshTokenEntity();
         }
 
-        // Mapear campos básicos
         entity.setToken(domain.getToken());
         entity.setFechaCreacion(domain.getFechaCreacion() != null ? domain.getFechaCreacion() : LocalDateTime.now());
         entity.setFechaExpiracion(domain.getFechaExpiracion());
         entity.setEstado(domain.getEstado());
 
-        // 🔥 Establecer la referencia al usuario si se proporciona usuarioId
         if (domain.getUsuarioId() != null) {
             // Usar getReferenceById para evitar carga innecesaria de la entidad completa
             UsuarioEntity usuario = usuarioRepository.getReferenceById(domain.getUsuarioId());
@@ -78,9 +65,6 @@ public class RefreshTokenMapper {
         return entity;
     }
 
-    /**
-     * Convierte una lista de entidades a dominios
-     */
     public List<RefreshToken> toDomainList(List<RefreshTokenEntity> entities) {
         if (entities == null || entities.isEmpty()) {
             return Collections.emptyList();

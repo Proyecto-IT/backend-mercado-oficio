@@ -31,16 +31,12 @@ public class ServicioCacheProxy {
 
     //@PostConstruct
     public void inicializarCache() {
-        log.info("🚀 Inicializando caché de servicios...");
+        log.info("Inicializando caché de servicios...");
         precargarServicios();
     }
 
-    /**
-     * Pre-carga todos los servicios Y sus dependencias en cache
-     */
     public void precargarServicios() {
         try {
-            // 1. Obtener todos los servicios de la DB (CON usuarios y oficios)
             List<Servicio> todosLosServicios = servicioRepository.findAll();
 
             if (todosLosServicios.isEmpty()) {
@@ -48,7 +44,6 @@ public class ServicioCacheProxy {
                 return;
             }
 
-            // 2. Extraer IDs únicos de usuarios y oficios
             Set<Integer> usuariosIds = todosLosServicios.stream()
                     .map(Servicio::getUsuarioId)
                     .collect(Collectors.toSet());
@@ -57,36 +52,30 @@ public class ServicioCacheProxy {
                     .map(Servicio::getOficioId)
                     .collect(Collectors.toSet());
 
-            log.info("📊 Precargando: {} servicios, {} usuarios, {} oficios",
+            log.info("Precargando: {} servicios, {} usuarios, {} oficios",
                     todosLosServicios.size(), usuariosIds.size(), oficiosIds.size());
 
-            // 3. Precargar usuarios en cache
             for (Integer usuarioId : usuariosIds) {
                 usuarioCacheService.buscarPorIdCached(usuarioId);
             }
-            log.info("✅ {} usuarios precargados", usuariosIds.size());
+            log.info("{} usuarios precargados", usuariosIds.size());
 
-            // 4. Precargar oficios en cache
             for (Integer oficioId : oficiosIds) {
                 oficioCacheService.buscarPorIdCached(oficioId);
             }
-            log.info("✅ {} oficios precargados", oficiosIds.size());
+            log.info("{} oficios precargados", oficiosIds.size());
 
-            // 5. Cachear cada servicio individual
             for (Servicio servicio : todosLosServicios) {
                 cacheService.cachearServicio(servicio);
 
-                // 6. Precargar portafolios de cada servicio
                 List<Portafolio> portafolios = portafolioRepository.findByServicioId(servicio.getId());
                 if (!portafolios.isEmpty()) {
                     portafolioCacheService.cachearPortafolios(servicio.getId(), portafolios);
                 }
             }
 
-            // 7. Cachear lista completa
             cacheService.cachearTodosLosServicios(todosLosServicios);
 
-            // 8. Agrupar y cachear por usuario
             Map<Integer, List<Servicio>> serviciosPorUsuario = todosLosServicios.stream()
                     .collect(Collectors.groupingBy(Servicio::getUsuarioId));
 
@@ -94,7 +83,6 @@ public class ServicioCacheProxy {
                 cacheService.cachearServiciosPorUsuario(entry.getKey(), entry.getValue());
             }
 
-            // 9. Agrupar y cachear por oficio
             Map<Integer, List<Servicio>> serviciosPorOficio = todosLosServicios.stream()
                     .collect(Collectors.groupingBy(Servicio::getOficioId));
 
@@ -102,27 +90,21 @@ public class ServicioCacheProxy {
                 cacheService.cachearServiciosPorOficio(entry.getKey(), entry.getValue());
             }
 
-            log.info("✅ Caché de servicios inicializado exitosamente:");
+            log.info("Caché de servicios inicializado exitosamente:");
             log.info("   - {} servicios individuales", todosLosServicios.size());
             log.info("   - {} grupos de usuarios", serviciosPorUsuario.size());
             log.info("   - {} grupos de oficios", serviciosPorOficio.size());
 
         } catch (Exception e) {
-            log.error("❌ Error al inicializar caché de servicios: {}", e.getMessage(), e);
+            log.error("Error al inicializar caché de servicios: {}", e.getMessage(), e);
         }
     }
 
-    /**
-     * Recarga todo el cache desde cero
-     */
     public void recargarCacheCompleto() {
-        log.info("🔄 Recargando caché completo de servicios...");
+        log.info("Recargando caché completo de servicios...");
         precargarServicios();
     }
 
-    /**
-     * Pre-carga un servicio específico con todas sus dependencias
-     */
     public void precargarServicio(Integer servicioId) {
         try {
             Optional<Servicio> servicioOpt = servicioRepository.findByIdWithDetails(servicioId);
@@ -144,24 +126,20 @@ public class ServicioCacheProxy {
                     portafolioCacheService.cachearPortafolios(servicioId, portafolios);
                 }
 
-                log.info("✅ Servicio {} precargado con todas sus dependencias", servicioId);
+                log.info("Servicio {} precargado con todas sus dependencias", servicioId);
             } else {
-                log.warn("⚠️ Servicio {} no encontrado para precargar", servicioId);
+                log.warn("Servicio {} no encontrado para precargar", servicioId);
             }
         } catch (Exception e) {
-            log.error("❌ Error al precargar servicio {}: {}", servicioId, e.getMessage(), e);
+            log.error("Error al precargar servicio {}: {}", servicioId, e.getMessage(), e);
         }
     }
 
-    /**
-     * Pre-carga servicios de un usuario en cache
-     */
     public void precargarServiciosPorUsuario(Integer usuarioId) {
         try {
             List<Servicio> servicios = servicioRepository.findByUsuarioId(usuarioId);
             cacheService.cachearServiciosPorUsuario(usuarioId, servicios);
 
-            // Precargar portafolios de cada servicio
             for (Servicio servicio : servicios) {
                 List<Portafolio> portafolios = portafolioRepository.findByServicioId(servicio.getId());
                 if (!portafolios.isEmpty()) {
@@ -169,22 +147,19 @@ public class ServicioCacheProxy {
                 }
             }
 
-            log.info("✅ Servicios del usuario {} precargados ({} servicios)", usuarioId, servicios.size());
+            log.info("Servicios del usuario {} precargados ({} servicios)", usuarioId, servicios.size());
         } catch (Exception e) {
-            log.error("❌ Error al precargar servicios del usuario {}: {}", usuarioId, e.getMessage(), e);
+            log.error("Error al precargar servicios del usuario {}: {}", usuarioId, e.getMessage(), e);
         }
     }
 
-    /**
-     * Pre-carga servicios de un oficio en cache
-     */
     public void precargarServiciosPorOficio(Integer oficioId) {
         try {
             List<Servicio> servicios = servicioRepository.findByOficioId(oficioId);
             cacheService.cachearServiciosPorOficio(oficioId, servicios);
-            log.info("✅ Servicios del oficio {} precargados ({} servicios)", oficioId, servicios.size());
+            log.info("Servicios del oficio {} precargados ({} servicios)", oficioId, servicios.size());
         } catch (Exception e) {
-            log.error("❌ Error al precargar servicios del oficio {}: {}", oficioId, e.getMessage(), e);
+            log.error("Error al precargar servicios del oficio {}: {}", oficioId, e.getMessage(), e);
         }
     }
 }

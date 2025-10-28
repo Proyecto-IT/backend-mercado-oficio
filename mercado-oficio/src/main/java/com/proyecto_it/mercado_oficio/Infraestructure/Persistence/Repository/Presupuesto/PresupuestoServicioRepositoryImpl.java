@@ -1,5 +1,6 @@
 package com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Repository.Presupuesto;
 
+import com.proyecto_it.mercado_oficio.Domain.Model.PresupuestoServicio;
 import com.proyecto_it.mercado_oficio.Domain.Model.Servicio;
 import com.proyecto_it.mercado_oficio.Domain.Repository.PresupuestoServicioRepository;
 import com.proyecto_it.mercado_oficio.Domain.ValueObjects.EstadoPresupuesto;
@@ -13,6 +14,7 @@ import com.proyecto_it.mercado_oficio.Mapper.Presupuesto.PresupuestoArchivo.Pres
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,11 +32,8 @@ public class PresupuestoServicioRepositoryImpl implements PresupuestoServicioRep
     @Override
     public PresupuestoServicioDTO guardar(PresupuestoServicioDTO dto, Servicio servicio) {
         try {
-            // Mapear solo internamente a entity para persistir
             PresupuestoServicioEntity entity = mapper.toEntity(dto, servicio);
             PresupuestoServicioEntity guardado = jpaRepository.save(entity);
-
-            // Mapear de nuevo a DTO para devolver
             return mapper.toDTO(guardado);
 
         } catch (Exception e) {
@@ -48,8 +47,29 @@ public class PresupuestoServicioRepositoryImpl implements PresupuestoServicioRep
         return jpaRepository.findByIdRespondido(presupuestoId).isPresent();
     }
 
+    @Override
+    public PresupuestoServicioEntity getEntityById(Integer id) {
+        return jpaRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Presupuesto no encontrado con ID: " + id));
+    }
+
+
+
     public PresupuestoServicioDTO getPresupuestoById(Integer id) {
-        return jpaRepository.findDTOById(id)
+        log.info("Buscando presupuesto con id={}", id);
+
+        PresupuestoServicioDTO dto = jpaRepository.findDTOById(id)
+                .orElseThrow(() -> {
+                    log.error("Presupuesto con id={} no encontrado", id);
+                    return new RuntimeException("Presupuesto no encontrado");
+                });
+
+        log.info("Presupuesto encontrado: {}", dto);
+        return dto;
+    }
+
+    public PresupuestoServicioDTO getPresupuestoPrestadorById(Integer id) {
+        return jpaRepository.findDTOByIdWithPrestador(id)
                 .orElseThrow(() -> new RuntimeException("Presupuesto no encontrado"));
     }
 
@@ -59,8 +79,14 @@ public class PresupuestoServicioRepositoryImpl implements PresupuestoServicioRep
     }
 
     @Override
+    @Transactional(readOnly = true)  // ✅ Agregar esto
     public List<PresupuestoServicioDTO> obtenerPorPrestador(Integer idPrestador) {
-        return jpaRepository.findByIdPrestador(idPrestador).stream()
+        log.info("Obteniendo presupuestos del prestador: {}", idPrestador);
+
+        List<PresupuestoServicioEntity> entities = jpaRepository
+                .findByIdPrestador(idPrestador);
+
+        return entities.stream()
                 .map(mapper::toDTO)
                 .collect(Collectors.toList());
     }
@@ -73,21 +99,35 @@ public class PresupuestoServicioRepositoryImpl implements PresupuestoServicioRep
     }
 
     @Override
+    @Transactional(readOnly = true)  // ✅ Agregar esta anotación
     public List<PresupuestoServicioDTO> obtenerPorServicio(Integer servicioId) {
-        return jpaRepository.findByServicioId(servicioId).stream()
+        log.info("Obteniendo presupuestos del servicio: {}", servicioId);
+
+        List<PresupuestoServicioEntity> entities = jpaRepository.findByServicioId(servicioId);
+
+        entities.forEach(entity -> {
+            entity.getArchivos().size(); // Inicializa archivos
+            entity.getHorariosSeleccionados().size(); // Inicializa horarios
+        });
+
+        return entities.stream()
                 .map(mapper::toDTO)
                 .collect(Collectors.toList());
     }
 
-    @Override
+    @Transactional
     public PresupuestoServicioDTO actualizar(Integer id, PresupuestoServicioUpdateDTO dto) {
         PresupuestoServicioEntity entity = jpaRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Presupuesto no encontrado con ID: " + id));
+
+        entity.getHorariosSeleccionados().size();
 
         mapper.updateEntity(dto, entity);
         PresupuestoServicioEntity actualizado = jpaRepository.save(entity);
         return mapper.toDTO(actualizado);
     }
+
+
 
     @Override
     public void eliminar(Integer id) {

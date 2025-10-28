@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 public class RefreshToken {
     private Long id;
     private String token;
-    private Integer usuarioId; // Agregado campo faltante
+    private Integer usuarioId;
     private LocalDateTime fechaExpiracion;
     private LocalDateTime fechaCreacion;
     private String estado; // VALID, EXPIRED, REVOKED

@@ -22,16 +22,14 @@ public class TokenVerificacionRepositoryImpl implements TokenVerificacionReposit
 
     private final JpaTokenVerificacionRepository jpaRepository;
     private final TokenVerificacionMapper mapper;
-    private final JpaUsuarioRepository usuarioRepository; // Para crear referencias
+    private final JpaUsuarioRepository usuarioRepository;
 
     @Override
     public TokenVerificacion guardar(TokenVerificacion token) {
         log.info("Guardando token de verificación para usuarioId={}", token.getUsuarioId());
 
-        // Obtener referencia al usuario
         UsuarioEntity usuarioRef = usuarioRepository.getReferenceById(token.getUsuarioId());
 
-        // Mapear directamente incluyendo el usuario
         TokenVerificacionEntity entity = mapper.toEntity(token, usuarioRef);
 
         TokenVerificacionEntity savedEntity = jpaRepository.save(entity);

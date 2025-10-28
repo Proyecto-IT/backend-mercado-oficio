@@ -33,10 +33,8 @@ import java.util.stream.Collectors;
 public class ServicioMapper {
 
     private final ObjectMapper objectMapper;
-    private final UsuarioCacheService usuarioCacheService; // 🔥 CAMBIO: Usar cache
-    private final OficioCacheService oficioCacheService;   // 🔥 CAMBIO: Usar cache
-
-    // ===== DTO -> DOMAIN =====
+    private final UsuarioCacheService usuarioCacheService;
+    private final OficioCacheService oficioCacheService;
 
     public Servicio toDomain(ServicioRequestDTO dto, Integer usuarioId) {
         return Servicio.builder()
@@ -82,10 +80,8 @@ public class ServicioMapper {
                 .build();
     }
 
-    // ===== DOMAIN -> DTO =====
 
     public ServicioResponseDTO toResponseDTO(Servicio servicio) {
-        // 🔥 USAR CACHE en lugar de repositorio directo
         Usuario usuario = usuarioCacheService.buscarPorIdCached(servicio.getUsuarioId())
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
@@ -120,11 +116,9 @@ public class ServicioMapper {
             List<Portafolio> portafolios,
             PortafolioMapper portafolioMapper) {
 
-        // 🔥 USAR CACHE en lugar de repositorio directo
         Usuario usuario = usuarioCacheService.buscarPorIdCached(servicio.getUsuarioId())
                 .orElse(null);
 
-        // 🔥 OPTIMIZACIÓN: Obtener nombre de oficio desde cache
         String nombreOficio = oficioCacheService.buscarPorIdCached(servicio.getOficioId())
                 .map(Oficio::getNombre)
                 .orElse("Desconocido");
@@ -154,7 +148,6 @@ public class ServicioMapper {
                 .build();
     }
 
-    // ===== DOMAIN -> ENTITY =====
 
     public ServicioEntity toEntity(Servicio servicio, UsuarioEntity usuario) {
         ServicioEntity entity = new ServicioEntity();
@@ -173,7 +166,6 @@ public class ServicioMapper {
         return entity;
     }
 
-    // ===== MÉTODOS AUXILIARES =====
 
     public Disponibilidad parseDisponibilidad(String json) {
         try {

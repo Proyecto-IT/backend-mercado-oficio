@@ -59,6 +59,9 @@ public class PresupuestoServicioEntity {
     @OneToMany(mappedBy = "presupuestoServicio", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PresupuestoArchivoEntity> archivos = new ArrayList<>();
 
+    @OneToMany(mappedBy = "presupuestoServicio", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<HorarioServicioEntity> horariosSeleccionados = new ArrayList<>();
+
     @CreationTimestamp
     @Column(name = "fecha_creacion", updatable = false)
     private LocalDateTime fechaCreacion;

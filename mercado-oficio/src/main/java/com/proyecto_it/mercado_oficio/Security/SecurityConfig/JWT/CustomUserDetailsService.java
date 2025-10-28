@@ -36,9 +36,10 @@ public class CustomUserDetailsService implements UserDetailsService {
         return User.builder()
                 .username(usuario.getGmail())
                 .password(usuario.getPassword())
-                .roles(rol) // Usa el rol mapeado a partir del permiso
+                .roles(rol)
                 .build();
     }
 }
+
 
 

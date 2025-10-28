@@ -25,14 +25,12 @@ public class TokenVerificacionServiceImpl implements TokenVerificacionService {
     public TokenVerificacion crearTokenParaUsuario(Integer usuarioId) {
         log.info("Creando token de verificación para usuario ID {}", usuarioId);
 
-        // Verificar que el usuario existe
         usuarioRepository.buscarPorId(usuarioId)
                 .orElseThrow(() -> {
                     log.warn("No se puede crear token: usuario ID {} no encontrado", usuarioId);
                     return new IllegalArgumentException("Usuario no encontrado");
                 });
 
-        // Crear token con fecha de creación y expiración
         TokenVerificacion token = TokenVerificacion.crearNuevo(usuarioId, 24);
 
         TokenVerificacion tokenGuardado = tokenRepository.guardar(token);

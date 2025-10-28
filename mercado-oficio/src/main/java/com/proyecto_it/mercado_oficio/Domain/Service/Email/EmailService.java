@@ -6,7 +6,7 @@ import java.util.Map;
 
 public interface EmailService {
     void enviarEmailVerificacion(Usuario usuario);
-    void enviarEmailRestablecimientoPassword(String gmail); // Corregido nombre
+    void enviarEmailRestablecimientoPassword(String gmail);
     void enviarEmailCambioEmail(String gmailActual, String nuevoEmail);
     void confirmarCambioEmail(String token);
 }

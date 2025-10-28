@@ -16,7 +16,6 @@ public class TokenVerificacionMapper{
             try {
                 usuarioId = entity.getUsuario().getId();
             } catch (Exception e) {
-                // Si hay problemas con lazy loading, usuarioId será null
                 usuarioId = null;
             }
         }

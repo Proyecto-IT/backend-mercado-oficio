@@ -8,8 +8,8 @@ import com.proyecto_it.mercado_oficio.Domain.Repository.RefreshTokenRepository;
 import com.proyecto_it.mercado_oficio.Domain.Service.Auth.AuthService;
 import com.proyecto_it.mercado_oficio.Domain.Service.Email.EmailService;
 import com.proyecto_it.mercado_oficio.Domain.Service.JWT.JwtTokenService;
-import com.proyecto_it.mercado_oficio.Domain.Service.JWT.RefreshTokenExpiredException;
-import com.proyecto_it.mercado_oficio.Domain.Service.JWT.RefreshTokenNotFoundException;
+import com.proyecto_it.mercado_oficio.Exception.RefreshTokenExpiredException;
+import com.proyecto_it.mercado_oficio.Exception.RefreshTokenNotFoundException;
 import com.proyecto_it.mercado_oficio.Domain.Service.TokenVerificacion.TokenVerificacionService;
 import com.proyecto_it.mercado_oficio.Domain.Service.Usuario.UsuarioService;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Auth.AuthRequest;
@@ -56,22 +56,18 @@ import java.util.Optional;
 
 public class AuthController {
 
-    // === Domain Services ===
     private final UsuarioService usuarioService;
     private final TokenVerificacionService tokenService;
     private final EmailService emailService;
     private final JwtTokenService jwtTokenService;
     private final AuthService authService;
     private final RefreshTokenRepository refreshTokenRepository;
-    // === Infrastructure Services ===
     private final AuthenticationManager authManager;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final JwtSpecialTokenService jwtSpecialTokenService;
     private final CustomUserDetailsService userDetailsService;
 
-
-    // === Mappers ===
     private final UsuarioMapper usuarioMapper;
 
     @Value("${app.frontend.url}")
@@ -146,7 +142,6 @@ public class AuthController {
         log.info("Intento de login para gmail={}", request.getGmail());
 
         try {
-            // 🔥 PASO 0: Limpiar cualquier refresh token anterior en la cookie
             String oldRefreshToken = Arrays.stream(
                             Optional.ofNullable(httpRequest.getCookies()).orElse(new Cookie[0]))
                     .filter(c -> c.getName().equals("refreshToken"))
@@ -155,17 +150,15 @@ public class AuthController {
                     .orElse(null);
 
             if (oldRefreshToken != null && !oldRefreshToken.isEmpty()) {
-                log.info("🧹 Token anterior detectado en cookie, invalidándolo...");
+                log.info("Token anterior detectado en cookie, invalidándolo...");
                 try {
                     jwtTokenService.invalidarRefreshToken(oldRefreshToken);
-                    log.info("✅ Token anterior invalidado antes del login");
+                    log.info("Token anterior invalidado antes del login");
                 } catch (Exception e) {
-                    log.warn("⚠️ No se pudo invalidar token anterior: {}", e.getMessage());
-                    // Continuar de todos modos
+                    log.warn("No se pudo invalidar token anterior: {}", e.getMessage());
                 }
             }
 
-            // Validar usuario
             Optional<Usuario> optUser = usuarioService.buscarPorGmail(request.getGmail());
             if (optUser.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -184,7 +177,6 @@ public class AuthController {
                         .body(Map.of("error", "Usa el login con Google para este usuario"));
             }
 
-            // Autenticar
             var authToken = new UsernamePasswordAuthenticationToken(
                     request.getGmail(),
                     request.getPassword()
@@ -192,22 +184,21 @@ public class AuthController {
             var auth = authManager.authenticate(authToken);
             var userDetails = (UserDetails) auth.getPrincipal();
 
-            // Generar nuevos tokens (esto ya expira todos los anteriores en BD)
             AuthResponse tokens = jwtTokenService.generarTokens(userDetails);
-            log.info("✅ Login exitoso, gmail={}, usuarioId={}",
+            log.info("Login exitoso, gmail={}, usuarioId={}",
                     request.getGmail(), tokens.getUsuarioId());
 
-            // 🔥 Crear cookie con el NUEVO refresh token
+            //Crear cookie con el nuevo refresh token
             ResponseCookie cookie = ResponseCookie.from("refreshToken", tokens.getRefreshToken())
                     .httpOnly(true)
-                    .secure(false)       // false en desarrollo local
-                    .sameSite("Lax")     // Lax para desarrollo
+                    .secure(false)
+                    .sameSite("Lax")
                     .path("/")
                     .maxAge(7 * 24 * 60 * 60) // 7 días
                     .build();
 
-            log.info("🍪 Nueva cookie de refresh token establecida");
-            log.info("🔑 Access token generado: {}...", tokens.getAccessToken().substring(0, 20));
+            log.info("Nueva cookie de refresh token establecida");
+            log.info("Access token generado: {}...", tokens.getAccessToken().substring(0, 20));
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -217,11 +208,11 @@ public class AuthController {
                     ));
 
         } catch (AuthenticationException e) {
-            log.warn("❌ Autenticación fallida para gmail={}", request.getGmail());
+            log.warn("Autenticación fallida para gmail={}", request.getGmail());
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Credenciales inválidas"));
         } catch (Exception e) {
-            log.error("❌ Error inesperado en login: ", e);
+            log.error("Error inesperado en login: ", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Error interno del servidor"));
         }
@@ -229,7 +220,7 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<?> refreshToken(HttpServletRequest request) {
-        log.info("🔄 Refresh token solicitado");
+        log.info("Refresh token solicitado");
 
         try {
             String refreshToken = Arrays.stream(Optional.ofNullable(request.getCookies()).orElse(new Cookie[0]))
@@ -237,21 +228,15 @@ public class AuthController {
                     .map(Cookie::getValue)
                     .findFirst()
                     .orElseThrow(() -> {
-                        log.warn("❌ No se encontró cookie refreshToken");
+                        log.warn("No se encontró cookie refreshToken");
                         return new RuntimeException("No se encontró el refresh token");
                     });
 
-            log.info("🔄 Refresh token encontrado en cookie: {}...", refreshToken.substring(0, 20));
-
-            // 🔍 NUEVO: Extraer username del JWT antes de buscar en BD
+            log.info("Refresh token encontrado en cookie: {}...", refreshToken.substring(0, 20));
             String username = jwtService.extractUsername(refreshToken);
-            log.info("👤 Username extraído del token: {}", username);
-
-            // 🔍 NUEVO: Verificar si el token JWT está expirado
+            log.info("Username extraído del token: {}", username);
             if (jwtService.isTokenExpired(refreshToken)) {
-                log.warn("❌ JWT del refresh token expirado para {}", username);
-
-                // Limpiar cookie
+                log.warn("JWT del refresh token expirado para {}", username);
                 ResponseCookie clearCookie = ResponseCookie.from("refreshToken", "")
                         .httpOnly(true)
                         .secure(false)
@@ -267,7 +252,7 @@ public class AuthController {
 
             AuthResponse newTokens = jwtTokenService.refrescarTokens(refreshToken);
 
-            log.info("✅ Nuevos tokens generados para usuario: {}", username);
+            log.info("Nuevos tokens generados para usuario: {}", username);
 
             ResponseCookie cookie = ResponseCookie.from("refreshToken", newTokens.getRefreshToken())
                     .httpOnly(true)
@@ -277,7 +262,7 @@ public class AuthController {
                     .maxAge(7 * 24 * 60 * 60)
                     .build();
 
-            log.info("✅ Refresh exitoso, enviando nuevo accessToken");
+            log.info("Refresh exitoso, enviando nuevo accessToken");
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, cookie.toString())
@@ -287,9 +272,8 @@ public class AuthController {
                     ));
 
         } catch (RefreshTokenNotFoundException | RefreshTokenExpiredException e) {
-            log.warn("❌ Token inválido: {}", e.getMessage());
+            log.warn("Token inválido: {}", e.getMessage());
 
-            // 🔥 IMPORTANTE: Limpiar la cookie cuando el token no es válido
             ResponseCookie clearCookie = createClearCookie();
 
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -297,9 +281,8 @@ public class AuthController {
                     .body(Map.of("error", "Refresh token inválido o expirado"));
 
         } catch (Exception e) {
-            log.error("❌ Error al refrescar token: ", e);
+            log.error("Error al refrescar token: ", e);
 
-            // También limpiar cookie en errores inesperados
             ResponseCookie clearCookie = createClearCookie();
 
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -308,7 +291,6 @@ public class AuthController {
         }
     }
 
-    // 🔥 Helper para crear cookie de limpieza
     private ResponseCookie createClearCookie() {
         return ResponseCookie.from("refreshToken", "")
                 .httpOnly(true)
@@ -365,38 +347,34 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request) {
-        log.info("🚪 Logout solicitado");
+        log.info("Logout solicitado");
 
         try {
-            // Intentar extraer el refresh token de la cookie
             String refreshToken = Arrays.stream(Optional.ofNullable(request.getCookies()).orElse(new Cookie[0]))
                     .filter(c -> c.getName().equals("refreshToken"))
                     .map(Cookie::getValue)
                     .findFirst()
                     .orElse(null);
 
-            // Si hay token, invalidarlo en la BD
             if (refreshToken != null && !refreshToken.isEmpty()) {
-                log.info("🔍 Invalidando refresh token en BD");
+                log.info("Invalidando refresh token en BD");
                 jwtTokenService.invalidarRefreshToken(refreshToken);
-                log.info("✅ Token invalidado exitosamente");
+                log.info("Token invalidado exitosamente");
             } else {
-                log.info("ℹ️ No se encontró refresh token para invalidar");
+                log.info("No se encontró refresh token para invalidar");
             }
 
-            // Siempre limpiar la cookie
             ResponseCookie clearCookie = createClearCookie();
 
-            log.info("✅ Logout completado");
+            log.info("Logout completado");
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.SET_COOKIE, clearCookie.toString())
                     .body(Map.of("message", "Logout exitoso"));
 
         } catch (Exception e) {
-            log.error("❌ Error en logout: ", e);
+            log.error("Error en logout: ", e);
 
-            // Aún en caso de error, limpiar la cookie
             ResponseCookie clearCookie = createClearCookie();
 
             return ResponseEntity.ok()
@@ -545,7 +523,6 @@ public class AuthController {
             return usuario;
 
         } else {
-            // Usuario nuevo
             log.info("OAuth2 - Creando nuevo usuario: {}", email);
 
             Usuario nuevoUsuario = Usuario.builder()

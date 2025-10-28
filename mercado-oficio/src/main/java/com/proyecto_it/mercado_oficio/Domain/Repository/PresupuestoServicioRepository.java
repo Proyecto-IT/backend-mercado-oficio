@@ -1,9 +1,11 @@
 package com.proyecto_it.mercado_oficio.Domain.Repository;
 
+import com.proyecto_it.mercado_oficio.Domain.Model.PresupuestoServicio;
 import com.proyecto_it.mercado_oficio.Domain.Model.Servicio;
 import com.proyecto_it.mercado_oficio.Domain.ValueObjects.EstadoPresupuesto;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoServicioDTO;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoServicioUpdateDTO;
+import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Presupuesto.PresupuestoServicioEntity;
 import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Servicio.ServicioEntity;
 
 import java.util.List;
@@ -18,5 +20,6 @@ public interface PresupuestoServicioRepository {
     void eliminar(Integer id);
     PresupuestoServicioDTO getPresupuestoById(Integer id);
     boolean estaRespondido(Integer presupuestoId);
-
+    PresupuestoServicioDTO getPresupuestoPrestadorById(Integer id);
+    PresupuestoServicioEntity getEntityById(Integer id);
 }

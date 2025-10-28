@@ -16,57 +16,44 @@ import java.util.function.Function;
 
 @Service
 public class JwtService {
-
     @Value("${jwt.secret}")
     private String secretKey;
-
     // Duraciones en milisegundos
     private static final long ACCESS_TOKEN_EXPIRATION = 1000 * 60 * 15; // 15 minutos
     private static final long REFRESH_TOKEN_EXPIRATION = 1000L * 60 * 60 * 24 * 7; // 7 días
-
     // Clave de firma
     private Key getSignInKey() {
         return Keys.hmacShaKeyFor(secretKey.getBytes());
     }
-
     // Extraer claims
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
-
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
-
     public Date extractExpiration(String token) {
         return extractClaim(token, Claims::getExpiration);
     }
-
     private Claims extractAllClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSignInKey())
-                // ⏰ Clock skew de 60 segundos para tokens de 15 minutos
                 .setAllowedClockSkewSeconds(60)
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
     }
-
     public boolean isTokenExpired(String token) {
         try {
             return extractExpiration(token).before(new Date());
         } catch (ExpiredJwtException e) {
             return true;
         } catch (Exception e) {
-            // Cualquier otro error del token lo consideramos como expirado
+            // Cualquier otro error del token se considera expirado
             return true;
         }
     }
-
-    /**
-     * ⏰ Verifica si el token expirará en los próximos minutos (útil para renovación proactiva)
-     */
     public boolean isTokenNearExpiration(String token, int minutesThreshold) {
         try {
             Date expiration = extractExpiration(token);
@@ -76,7 +63,6 @@ public class JwtService {
             return true;
         }
     }
-
     public boolean isTokenValid(String token, String username) {
         try {
             final String extractedUsername = extractUsername(token);
@@ -85,17 +71,12 @@ public class JwtService {
             return false;
         }
     }
-
-    // ========== Generación de Tokens ==========
-
     public String generateAccessToken(Map<String, Object> extraClaims, String username) {
         return generateToken(extraClaims, username, ACCESS_TOKEN_EXPIRATION);
     }
-
     public String generateRefreshToken(Map<String, Object> extraClaims, String username) {
         return generateToken(extraClaims, username, REFRESH_TOKEN_EXPIRATION);
     }
-
     private String generateToken(Map<String, Object> extraClaims, String subject, long expirationMillis) {
         return Jwts.builder()
                 .setClaims(extraClaims)

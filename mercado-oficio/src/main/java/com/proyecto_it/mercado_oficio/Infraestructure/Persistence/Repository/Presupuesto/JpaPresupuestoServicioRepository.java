@@ -17,12 +17,48 @@ import java.util.Optional;
 public interface JpaPresupuestoServicioRepository extends JpaRepository<PresupuestoServicioEntity, Integer> {
 
     @Query("SELECT new com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoServicioDTO(" +
-            "p.id, p.servicio.id, u.id, u.nombre, u.apellido, p.descripcionProblema, p.fechaCreacion, p.estado, s.tarifaHora) " +
+            "p.id, s.id, c.id, c.nombre, c.apellido, " +
+            "pr.id, pr.nombre, pr.apellido, p.descripcionProblema, p.fechaCreacion, " +
+            "p.estado, s.tarifaHora, p.respondido, p.presupuesto, p.descripcionSolucion, " +
+            "p.fechaActualizacion, p.costoMateriales, p.horasEstimadas, s.disponibilidad) " +
             "FROM PresupuestoServicioEntity p " +
             "LEFT JOIN p.servicio s " +
-            "LEFT JOIN UsuarioEntity u ON u.id = p.idCliente " +
+            "LEFT JOIN UsuarioEntity c ON c.id = p.idCliente " +
+            "LEFT JOIN UsuarioEntity pr ON pr.id = s.usuario.id " +
             "WHERE p.id = :id")
     Optional<PresupuestoServicioDTO> findDTOById(@Param("id") Integer id);
+
+
+
+
+    @Query("""
+    SELECT new com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoServicioDTO(
+        p.id,
+        p.servicio.id,
+        c.id,
+        c.nombre,
+        c.apellido,
+        pr.id,
+        pr.nombre,
+        pr.apellido,
+        p.descripcionProblema,
+        p.fechaCreacion,
+        p.estado,
+        s.tarifaHora,
+        p.respondido,
+        p.presupuesto,
+        p.descripcionSolucion,
+        p.fechaActualizacion,
+        p.costoMateriales,
+        p.horasEstimadas
+    )
+    FROM PresupuestoServicioEntity p
+    LEFT JOIN p.servicio s
+    LEFT JOIN UsuarioEntity c ON c.id = p.idCliente
+    LEFT JOIN UsuarioEntity pr ON pr.id = p.idPrestador
+    WHERE p.id = :id
+""")
+    Optional<PresupuestoServicioDTO> findDTOByIdWithPrestador(@Param("id") Integer id);
 
 
     @Query("""
@@ -33,14 +69,16 @@ public interface JpaPresupuestoServicioRepository extends JpaRepository<Presupue
         p.descripcionProblema, p.fechaCreacion,
         p.estado, p.servicio.tarifaHora, p.respondido,
         p.presupuesto, p.descripcionSolucion, p.fechaActualizacion,
-        p.costoMateriales, p.horasEstimadas
+        p.costoMateriales, p.horasEstimadas,
+        p.servicio.disponibilidad
     )
     FROM PresupuestoServicioEntity p
     LEFT JOIN UsuarioEntity u1 ON p.idCliente = u1.id
     LEFT JOIN UsuarioEntity u2 ON p.idPrestador = u2.id
     WHERE p.idCliente = :idCliente
-    """)
+""")
     List<PresupuestoServicioDTO> findByIdCliente(@Param("idCliente") Integer idCliente);
+
 
     @Query("SELECT DISTINCT p FROM PresupuestoServicioEntity p LEFT JOIN FETCH p.archivos WHERE p.idPrestador = :idPrestador")
     List<PresupuestoServicioEntity> findByIdPrestador(@Param("idPrestador") Integer idPrestador);

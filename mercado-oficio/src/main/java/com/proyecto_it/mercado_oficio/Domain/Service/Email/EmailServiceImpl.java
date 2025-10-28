@@ -42,8 +42,6 @@ public class EmailServiceImpl implements EmailService {
         log.info("Generando email de verificación para usuario: {}", usuario.getGmail());
 
         TokenVerificacion token = tokenService.crearTokenParaUsuario(usuario.getId());
-
-        // ⭐ CAMBIA ESTA LÍNEA - Apunta a la ruta de React
         String link = frontendUrl + "/validate-email?token=" + token.getToken();
 
         Map<String, Object> variables = Map.of(

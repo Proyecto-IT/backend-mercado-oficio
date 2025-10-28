@@ -34,7 +34,7 @@ public class ServicioServiceImpl implements ServicioService {
     @Override
     public Servicio crearServicio(Servicio servicio, MultipartFile imagen) {
         try {
-            log.info("📝 Creando servicio para usuario {}", servicio.getUsuarioId());
+            log.info("Creando servicio para usuario {}", servicio.getUsuarioId());
 
             // 1. Guardar imagen si existe
             if (imagen != null && !imagen.isEmpty()) {
@@ -53,35 +53,31 @@ public class ServicioServiceImpl implements ServicioService {
                         .build();
             }
 
-            // 2. Guardar servicio en DB
             Servicio servicioGuardado = servicioRepository.save(servicio);
 
-            // 🔥 VALIDACIÓN CRÍTICA: Verificar que el servicio guardado tiene ID
             if (servicioGuardado == null || servicioGuardado.getId() == null) {
                 throw new RuntimeException("Error: El servicio no se guardó correctamente en la base de datos");
             }
 
-            log.info("✅ Servicio {} guardado en DB", servicioGuardado.getId());
+            log.info("Servicio {} guardado en DB", servicioGuardado.getId());
 
-            // 3. Actualizar permiso del usuario si es necesario
             Usuario usuario = usuarioService.buscarPorId(servicio.getUsuarioId())
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
             if (usuario.getPermiso() == 3) {
-                log.info("🔄 Usuario {} necesita cambio de permiso (de 3 a 2)", usuario.getId());
+                log.info("Usuario {} necesita cambio de permiso (de 3 a 2)", usuario.getId());
                 usuarioService.modificarPermisoUsuario(usuario.getId(), 2);
             } else {
-                log.info("ℹ️ Usuario {} ya tiene permiso {} (no se requiere cambio)",
+                log.info("Usuario {} ya tiene permiso {} (no se requiere cambio)",
                         usuario.getId(), usuario.getPermiso());
             }
 
-            // 4. Sincronizar cache DESPUÉS de tener el ID
             cacheService.sincronizarDespuesDeCrear(servicioGuardado);
 
             return servicioGuardado;
 
         } catch (Exception e) {
-            log.error("❌ Error al crear servicio: {}", e.getMessage(), e);
+            log.error("Error al crear servicio: {}", e.getMessage(), e);
             throw new RuntimeException("Error al crear servicio: " + e.getMessage(), e);
         }
     }
@@ -90,17 +86,14 @@ public class ServicioServiceImpl implements ServicioService {
     public Servicio crearServicioConPortafolios(Servicio servicio, MultipartFile imagen,
                                                 List<Portafolio> portafolios) {
         try {
-            log.info("📝 Creando servicio CON portafolios para usuario {}", servicio.getUsuarioId());
+            log.info("Creando servicio CON portafolios para usuario {}", servicio.getUsuarioId());
 
-            // 1. Crear el servicio primero
             Servicio servicioGuardado = crearServicio(servicio, imagen);
 
-            // 🔥 VALIDACIÓN: Asegurar que tenemos ID antes de continuar
             if (servicioGuardado.getId() == null) {
                 throw new RuntimeException("Error: El servicio no tiene ID después de guardarlo");
             }
 
-            // 2. Guardar portafolios asociados al servicio
             if (portafolios != null && !portafolios.isEmpty()) {
                 for (Portafolio portafolio : portafolios) {
                     Portafolio portafolioConServicio = Portafolio.builder()
@@ -111,14 +104,14 @@ public class ServicioServiceImpl implements ServicioService {
 
                     portafolioService.crearPortafolio(portafolioConServicio);
                 }
-                log.info("✅ {} portafolios creados para servicio {}",
+                log.info("{} portafolios creados para servicio {}",
                         portafolios.size(), servicioGuardado.getId());
             }
 
             return servicioGuardado;
 
         } catch (Exception e) {
-            log.error("❌ Error al crear servicio con portafolios: {}", e.getMessage(), e);
+            log.error("Error al crear servicio con portafolios: {}", e.getMessage(), e);
             throw new RuntimeException("Error al crear servicio con portafolios: " + e.getMessage(), e);
         }
     }
@@ -126,13 +119,11 @@ public class ServicioServiceImpl implements ServicioService {
     @Override
     public Servicio actualizarServicio(Integer id, Servicio servicio, MultipartFile imagen) {
         try {
-            log.info("🔄 Actualizando servicio {}", id);
+            log.info("Actualizando servicio {}", id);
 
-            // Obtener servicio anterior para sincronización de cache
             Servicio servicioAnterior = servicioRepository.findByIdWithDetails(id)
                     .orElseThrow(() -> new RuntimeException("Servicio no encontrado"));
 
-            // Actualizar imagen si se proporciona una nueva
             String imagenUrl = servicioAnterior.getImagenUrl();
             if (imagen != null && !imagen.isEmpty()) {
                 if (imagenUrl != null) {
@@ -141,7 +132,6 @@ public class ServicioServiceImpl implements ServicioService {
                 imagenUrl = fileStorageService.guardarImagen(imagen);
             }
 
-            // Construir servicio actualizado
             Servicio servicioActualizado = Servicio.builder()
                     .id(id)
                     .usuarioId(servicioAnterior.getUsuarioId())
@@ -156,22 +146,19 @@ public class ServicioServiceImpl implements ServicioService {
                     .imagenUrl(imagenUrl)
                     .build();
 
-            // Guardar cambios
             Servicio servicioGuardado = servicioRepository.save(servicioActualizado);
 
-            // 🔥 VALIDACIÓN
             if (servicioGuardado == null || servicioGuardado.getId() == null) {
                 throw new RuntimeException("Error al actualizar servicio en la base de datos");
             }
 
-            // Sincronizar cache
             cacheService.sincronizarDespuesDeActualizar(servicioAnterior, servicioGuardado);
 
-            log.info("✅ Servicio {} actualizado correctamente", id);
+            log.info("Servicio {} actualizado correctamente", id);
             return servicioGuardado;
 
         } catch (Exception e) {
-            log.error("❌ Error al actualizar servicio {}: {}", id, e.getMessage(), e);
+            log.error("Error al actualizar servicio {}: {}", id, e.getMessage(), e);
             throw new RuntimeException("Error al actualizar servicio: " + e.getMessage(), e);
         }
     }
@@ -181,14 +168,11 @@ public class ServicioServiceImpl implements ServicioService {
                                                      MultipartFile imagen,
                                                      List<Portafolio> portafolios) {
         try {
-            log.info("🔄 Actualizando servicio {} CON portafolios", id);
+            log.info("Actualizando servicio {} CON portafolios", id);
 
-            // Actualizar servicio
             Servicio servicioActualizado = actualizarServicio(id, servicio, imagen);
 
-            // Actualizar portafolios
             if (portafolios != null) {
-                // Eliminar portafolios anteriores
                 List<Portafolio> portafoliosAnteriores = portafolioService
                         .obtenerPortafoliosPorServicio(id);
 
@@ -196,7 +180,6 @@ public class ServicioServiceImpl implements ServicioService {
                     portafolioService.eliminarPortafolio(p.getId());
                 }
 
-                // Crear nuevos portafolios
                 for (Portafolio portafolio : portafolios) {
                     Portafolio nuevoPortafolio = Portafolio.builder()
                             .servicioId(id)
@@ -207,14 +190,14 @@ public class ServicioServiceImpl implements ServicioService {
                     portafolioService.crearPortafolio(nuevoPortafolio);
                 }
 
-                log.info("✅ {} portafolios actualizados para servicio {}",
+                log.info("{} portafolios actualizados para servicio {}",
                         portafolios.size(), id);
             }
 
             return servicioActualizado;
 
         } catch (Exception e) {
-            log.error("❌ Error al actualizar servicio con portafolios {}: {}",
+            log.error("Error al actualizar servicio con portafolios {}: {}",
                     id, e.getMessage(), e);
             throw new RuntimeException("Error al actualizar servicio con portafolios: " +
                     e.getMessage(), e);
@@ -224,54 +207,51 @@ public class ServicioServiceImpl implements ServicioService {
     @Override
     public void eliminarServicio(Integer id, Integer usuarioId) {
         try {
-            log.info("🗑️ Eliminando servicio {}", id);
+            log.info("Eliminando servicio {}", id);
 
             Servicio servicio = servicioRepository.findByIdWithDetails(id)
                     .orElseThrow(() -> new RuntimeException("Servicio no encontrado"));
 
             validarPermisos(id, usuarioId);
 
-            // Eliminar imagen si existe
             if (servicio.getImagenUrl() != null) {
                 fileStorageService.eliminarImagen(servicio.getImagenUrl());
             }
 
-            // Eliminar servicio
             servicioRepository.deleteById(id);
 
-            // Sincronizar cache
             cacheService.sincronizarDespuesDeEliminar(servicio);
 
-            log.info("✅ Servicio {} eliminado correctamente", id);
+            log.info("Servicio {} eliminado correctamente", id);
 
         } catch (Exception e) {
-            log.error("❌ Error al eliminar servicio {}: {}", id, e.getMessage(), e);
+            log.error("Error al eliminar servicio {}: {}", id, e.getMessage(), e);
             throw new RuntimeException("Error al eliminar servicio: " + e.getMessage(), e);
         }
     }
 
     @Override
     public Servicio obtenerServicioPorId(Integer id) {
-        log.info("🔍 Obteniendo servicio {}", id);
+        log.info("Obteniendo servicio {}", id);
         return cacheService.obtenerServicioPorIdCached(id)
                 .orElseThrow(() -> new RuntimeException("Servicio no encontrado"));
     }
 
     @Override
     public List<Servicio> obtenerServiciosPorUsuario(Integer usuarioId) {
-        log.info("🔍 Obteniendo servicios del usuario {}", usuarioId);
+        log.info("Obteniendo servicios del usuario {}", usuarioId);
         return cacheService.obtenerServiciosPorUsuarioCached(usuarioId);
     }
 
     @Override
     public List<Servicio> obtenerServiciosPorOficio(Integer oficioId) {
-        log.info("🔍 Obteniendo servicios del oficio {}", oficioId);
+        log.info("Obteniendo servicios del oficio {}", oficioId);
         return cacheService.obtenerServiciosPorOficioCached(oficioId);
     }
 
     @Override
     public List<Servicio> obtenerTodosLosServicios() {
-        log.info("🔍 Obteniendo todos los servicios desde cache");
+        log.info("Obteniendo todos los servicios desde cache");
         return cacheService.obtenerTodosLosServiciosCached();
     }
 

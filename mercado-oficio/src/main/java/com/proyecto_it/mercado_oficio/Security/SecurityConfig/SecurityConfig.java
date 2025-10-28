@@ -22,7 +22,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
-@Profile("!test") // Solo se activa fuera de tests
+@Profile("!test")
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
@@ -51,20 +51,13 @@ public class SecurityConfig {
                                 "/api/auth/oauth2/success",
                                 "/api/usuario/confirmar-email"
                         ).permitAll()
-                        // MERCADOPAGO
-                        .requestMatchers(
-                                "/api/mp/**",
-                                "/pago-exitoso",
-                                "/pago-pendiente",
-                                "/pago-fallido"
-                        ).permitAll()
                         // OAUTH2
                         .requestMatchers("/login/oauth2/**", "/oauth2/**").permitAll()
                         // ENDPOINTS PROTEGIDOS - AUTH
                         .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/auth/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
 
-                        // ⭐ USUARIO - RUTAS ESPECÍFICAS CON AUTENTICACIÓN SIMPLE
+                        //USUARIO
                         .requestMatchers(HttpMethod.GET, "/api/usuario/me/**").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/usuario/me/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/usuario/me/**").authenticated()
@@ -74,7 +67,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/usuario/{gmail}").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
 
                         // OFICIOS
-                        .requestMatchers(HttpMethod.GET, "/api/oficios/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
+                        .requestMatchers(HttpMethod.GET, "/api/oficios/**").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/api/oficios/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/oficios/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/oficios/**").hasRole("ADMIN")
@@ -88,6 +81,18 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/servicios/**").hasRole("TRABAJADOR")
                         .requestMatchers(HttpMethod.DELETE, "/api/servicios/**").hasRole("TRABAJADOR")
 
+                        //PRESUPUESTO
+                        .requestMatchers(HttpMethod.GET, "/api/presupuestos/**").hasAnyRole("CLIENTE", "TRABAJADOR")
+                        .requestMatchers(HttpMethod.POST, "/api/presupuestos").hasAnyRole("CLIENTE", "TRABAJADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/presupuestos/**").hasAnyRole("CLIENTE", "TRABAJADOR")
+                        .requestMatchers(HttpMethod.PATCH, "/api/presupuestos/*/estado").hasAnyRole("CLIENTE", "TRABAJADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/presupuestos/**").hasAnyRole("CLIENTE", "TRABAJADOR")
+                        // HITOS
+                        .requestMatchers(HttpMethod.POST, "/api/hitos/crear").hasAnyRole("CLIENTE", "TRABAJADOR")  // ← Específica primero
+                        .requestMatchers(HttpMethod.GET, "/api/hitos/**").hasAnyRole("CLIENTE", "TRABAJADOR")
+                        .requestMatchers(HttpMethod.POST, "/api/hitos/**").hasAnyRole("CLIENTE", "TRABAJADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/hitos/**").hasAnyRole("CLIENTE", "TRABAJADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/hitos/**").hasAnyRole("CLIENTE", "TRABAJADOR")
                         // RESTO DE API - GET para autenticados
                         .requestMatchers(HttpMethod.GET, "/api/**").hasAnyRole("CLIENTE", "ADMIN", "TRABAJADOR")
 
@@ -109,13 +114,13 @@ public class SecurityConfig {
                 "http://localhost:*",
                 "http://127.0.0.1:*",
                 "https://www.mercadopago.com.ar",
-                "https://www.mercadopago.com"
+                "https://www.mercadopago.com",
+                "https://mercado-oficio.netlify.app"
         ));
 
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowCredentials(true);
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));        configuration.setAllowCredentials(true);
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie")); // ← Exponer headers necesarios
+        configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

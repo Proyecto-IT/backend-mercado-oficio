@@ -11,30 +11,25 @@ import java.util.Optional;
 @Repository
 public interface JpaServicioRepository extends JpaRepository<ServicioEntity, Integer> {
 
-    // 🔥 FETCH JOIN para evitar N+1 queries
     @Query("SELECT DISTINCT s FROM ServicioEntity s " +
             "LEFT JOIN FETCH s.usuario " +
             "WHERE s.id = :id")
     Optional<ServicioEntity> findByIdWithUsuario(@Param("id") Integer id);
 
-    // 🔥 FETCH JOIN para cargar usuario en una sola query
     @Query("SELECT DISTINCT s FROM ServicioEntity s " +
             "LEFT JOIN FETCH s.usuario u " +
             "WHERE s.usuario.id = :usuarioId")
     List<ServicioEntity> findByUsuarioIdWithUsuario(@Param("usuarioId") Integer usuarioId);
 
-    // 🔥 FETCH JOIN para oficio
     @Query("SELECT DISTINCT s FROM ServicioEntity s " +
             "LEFT JOIN FETCH s.usuario " +
             "WHERE s.oficioId = :oficioId")
     List<ServicioEntity> findByOficioIdWithUsuario(@Param("oficioId") Integer oficioId);
 
-    // 🔥 FETCH JOIN para todos los servicios
     @Query("SELECT DISTINCT s FROM ServicioEntity s " +
             "LEFT JOIN FETCH s.usuario")
     List<ServicioEntity> findAllWithUsuarios();
 
-    // Queries existentes (sin cambios si no las usas)
     List<ServicioEntity> findByUsuarioId(Integer usuarioId);
 
     List<ServicioEntity> findByOficioId(Integer oficioId);

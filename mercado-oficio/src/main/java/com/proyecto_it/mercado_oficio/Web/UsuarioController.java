@@ -110,16 +110,12 @@ public class UsuarioController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("❌ Error al obtener imagen de perfil: {}", e.getMessage(), e);
+            log.error("Error al obtener imagen de perfil: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "No se pudo obtener la imagen de perfil"));
         }
     }
 
-    /**
-     * Actualizar imagen de perfil del usuario
-     * Esta imagen se reflejará en TODOS los servicios del usuario
-     */
     @PutMapping(value = "/me/imagen", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> actualizarImagenPerfil(
             @RequestPart("imagen") MultipartFile imagen,
@@ -128,15 +124,13 @@ public class UsuarioController {
         try {
             String gmail = obtenerGmailDeAuth(authentication);
 
-            log.info("📸 Actualizando imagen de perfil para usuario: {}", gmail);
+            log.info("Actualizando imagen de perfil para usuario: {}", gmail);
 
-            // Validar archivo
             if (imagen.isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "La imagen no puede estar vacía"));
             }
 
-            // Validar tipo de archivo
             String contentType = imagen.getContentType();
             List<String> tiposPermitidos = Arrays.asList(
                     "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"
@@ -147,20 +141,17 @@ public class UsuarioController {
                         .body(Map.of("error", "Tipo de archivo no válido. Solo se permiten JPG, PNG, GIF o WEBP"));
             }
 
-            // Validar tamaño (máx 10MB)
             long maxSize = 10 * 1024 * 1024; // 10MB
             if (imagen.getSize() > maxSize) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "La imagen no debe superar los 10MB"));
             }
 
-            // Actualizar imagen
             boolean actualizado = usuarioService.actualizarImagenPerfil(gmail, imagen);
 
             if (actualizado) {
-                log.info("✅ Imagen de perfil actualizada para usuario: {}", gmail);
+                log.info("Imagen de perfil actualizada para usuario: {}", gmail);
 
-                // Obtener imagen actualizada
                 Usuario usuario = usuarioService.buscarPorGmail(gmail)
                         .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
@@ -179,26 +170,23 @@ public class UsuarioController {
             }
 
         } catch (Exception e) {
-            log.error("❌ Error al actualizar imagen de perfil: {}", e.getMessage(), e);
+            log.error("Error al actualizar imagen de perfil: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Error al procesar la imagen: " + e.getMessage()));
         }
     }
 
-    /**
-     * Eliminar imagen de perfil del usuario
-     */
     @DeleteMapping("/me/imagen")
     public ResponseEntity<Map<String, String>> eliminarImagenPerfil(Authentication authentication) {
         try {
             String gmail = obtenerGmailDeAuth(authentication);
 
-            log.info("🗑️ Eliminando imagen de perfil para usuario: {}", gmail);
+            log.info("Eliminando imagen de perfil para usuario: {}", gmail);
 
             boolean eliminado = usuarioService.eliminarImagenPerfil(gmail);
 
             if (eliminado) {
-                log.info("✅ Imagen de perfil eliminada para usuario: {}", gmail);
+                log.info("Imagen de perfil eliminada para usuario: {}", gmail);
                 return ResponseEntity.ok(Map.of(
                         "mensaje", "Imagen de perfil eliminada correctamente",
                         "advertencia", "Esta imagen se ha eliminado de todos tus servicios"
@@ -209,13 +197,12 @@ public class UsuarioController {
             }
 
         } catch (Exception e) {
-            log.error("❌ Error al eliminar imagen de perfil: {}", e.getMessage(), e);
+            log.error("Error al eliminar imagen de perfil: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Error al eliminar la imagen"));
         }
     }
 
-    // Método auxiliar
     private String obtenerGmailDeAuth(Authentication authentication) {
         if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
             UserDetails userDetails = (UserDetails) authentication.getPrincipal();

@@ -50,7 +50,6 @@ public class OficioController {
         return ResponseEntity.ok(response);
     }
 
-    // ✅ Nuevo método: buscar oficio por ID
     @GetMapping("/{id}")
     public ResponseEntity<OficioResponse> buscarPorId(@PathVariable Integer id) {
         log.info("Buscando oficio por ID: {}", id);

@@ -18,13 +18,9 @@ public class AuthServiceImpl implements AuthService{
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new RuntimeException("No autenticado");
         }
-
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-
-        // Si querés obtener datos completos desde la base de datos
         Usuario usuario = usuarioService.buscarPorGmail(userDetails.getUsername())
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
-
         return Map.of(
                 "nombre", usuario.getNombre(),
                 "apellido", usuario.getApellido(),

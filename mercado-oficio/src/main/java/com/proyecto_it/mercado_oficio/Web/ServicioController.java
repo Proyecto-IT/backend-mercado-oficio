@@ -41,7 +41,7 @@ public class ServicioController {
     private final ServicioMapper mapper;
     private final PortafolioMapper portafolioMapper;
     private final ObjectMapper objectMapper;
-    private final PortafolioCacheService portafolioCacheService; // 🔥 NUEVO
+    private final PortafolioCacheService portafolioCacheService;
 
     @GetMapping
     public ResponseEntity<List<ServicioResponseDTO>> obtenerTodosLosServicios() {
@@ -49,7 +49,6 @@ public class ServicioController {
 
         List<ServicioResponseDTO> response = servicios.stream()
                 .map(servicio -> {
-                    // 🔥 USAR CACHE: obtenerPortafoliosPorServicioCached
                     List<Portafolio> portafolios = portafolioCacheService
                             .obtenerPortafoliosPorServicioCached(servicio.getId());
                     return mapper.toResponseDTOWithPortafolios(servicio, portafolios, portafolioMapper);
@@ -63,7 +62,6 @@ public class ServicioController {
     public ResponseEntity<ServicioResponseDTO> obtenerServicioPorId(@PathVariable Integer id) {
         Servicio servicio = servicioService.obtenerServicioPorId(id);
 
-        // 🔥 USAR CACHE
         List<Portafolio> portafolios = portafolioCacheService
                 .obtenerPortafoliosPorServicioCached(id);
 
@@ -80,7 +78,6 @@ public class ServicioController {
 
         List<ServicioResponseDTO> response = servicios.stream()
                 .map(servicio -> {
-                    // 🔥 USAR CACHE
                     List<Portafolio> portafolios = portafolioCacheService
                             .obtenerPortafoliosPorServicioCached(servicio.getId());
                     return mapper.toResponseDTOWithPortafolios(servicio, portafolios, portafolioMapper);
@@ -97,7 +94,6 @@ public class ServicioController {
             Authentication authentication) {
 
         try {
-            // 🔐 Obtener Gmail desde el token JWT (UserDetails)
             String gmail = authentication.getName();
 
             Usuario usuarioAntes = usuarioService.buscarPorGmail(gmail)
@@ -105,32 +101,25 @@ public class ServicioController {
             Integer usuarioId = usuarioAntes.getId();
             Integer permisoAntes = usuarioAntes.getPermiso();
 
-            log.info("📝 Creando servicio - Usuario: {}, Gmail: {}, Permiso actual: {}", usuarioId, gmail, permisoAntes);
+            log.info("Creando servicio - Usuario: {}, Gmail: {}, Permiso actual: {}", usuarioId, gmail, permisoAntes);
 
-            // Convertir JSON a DTO
             ServicioRequestDTO requestDTO = objectMapper.readValue(servicioJson, ServicioRequestDTO.class);
             Servicio servicio = mapper.toDomain(requestDTO, usuarioId);
 
-            // ============================
-            // 🔥 LÓGICA DE IMAGEN (USUARIO)
-            // ============================
             if ("nueva".equalsIgnoreCase(requestDTO.getImagenOpcion()) && imagen != null) {
-                log.info("🖼️ Subiendo nueva imagen para el usuario {}", gmail);
+                log.info("Subiendo nueva imagen para el usuario {}", gmail);
                 usuarioService.actualizarImagenPerfil(gmail, imagen);
 
             } else if ("mantener".equalsIgnoreCase(requestDTO.getImagenOpcion())) {
-                log.info("🖼️ Manteniendo imagen existente del usuario {}", gmail);
+                log.info("Manteniendo imagen existente del usuario {}", gmail);
 
             } else if ("ninguna".equalsIgnoreCase(requestDTO.getImagenOpcion())) {
-                log.info("🚫 Eliminando imagen del usuario {}", gmail);
+                log.info("Eliminando imagen del usuario {}", gmail);
                 usuarioService.eliminarImagenPerfil(gmail);
             } else {
-                log.info("⚠️ Opción de imagen no especificada o inválida, no se modifica la imagen del usuario.");
+                log.info("Opción de imagen no especificada o inválida, no se modifica la imagen del usuario.");
             }
 
-            // ============================
-            // 🔥 CREACIÓN DEL SERVICIO
-            // ============================
             Servicio servicioCreado;
             List<Portafolio> portafoliosCreados = null;
 
@@ -148,9 +137,6 @@ public class ServicioController {
                 servicioCreado = servicioService.crearServicio(servicio, null);
             }
 
-            // ============================
-            // 🔁 VERIFICAR CAMBIO DE ROL
-            // ============================
             Usuario usuarioDespues = usuarioService.buscarPorGmail(gmail)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
             Integer permisoDespues = usuarioDespues.getPermiso();
@@ -158,15 +144,12 @@ public class ServicioController {
             boolean rolCambio = !permisoAntes.equals(permisoDespues);
 
             if (rolCambio) {
-                log.info("🔄 Rol cambió de {} a {} - Actualizando...", permisoAntes, permisoDespues);
+                log.info("Rol cambió de {} a {} - Actualizando...", permisoAntes, permisoDespues);
                 usuarioService.modificarPermisoUsuario(usuarioId, permisoDespues);
                 usuarioDespues = usuarioService.buscarPorGmail(gmail)
                         .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
             }
 
-            // ============================
-            // 📦 RESPUESTA FINAL
-            // ============================
             Map<String, Object> responseBody = new HashMap<>();
 
             if (portafoliosCreados != null) {
@@ -184,13 +167,13 @@ public class ServicioController {
                 usuarioActualizado.put("gmail", usuarioDespues.getGmail());
                 usuarioActualizado.put("rol", mapearPermiso(permisoDespues));
                 responseBody.put("usuarioActualizado", usuarioActualizado);
-                log.info("✅ Usuario actualizado correctamente: {}", usuarioActualizado);
+                log.info("Usuario actualizado correctamente: {}", usuarioActualizado);
             }
 
             return ResponseEntity.status(HttpStatus.CREATED).body(responseBody);
 
         } catch (Exception e) {
-            log.error("❌ Error al crear servicio: ", e);
+            log.error("Error al crear servicio: ", e);
             throw new RuntimeException("Error al procesar la solicitud: " + e.getMessage(), e);
         }
     }
@@ -210,24 +193,18 @@ public class ServicioController {
 
             ServicioUpdateDTO updateDTO = objectMapper.readValue(servicioJson, ServicioUpdateDTO.class);
 
-            // ============================
-            // 🔥 LÓGICA DE IMAGEN (USUARIO)
-            // ============================
             if ("nueva".equalsIgnoreCase(updateDTO.getImagenOpcion()) && imagen != null) {
-                log.info("🖼️ Subiendo nueva imagen para el usuario {}", gmail);
+                log.info("Subiendo nueva imagen para el usuario {}", gmail);
                 usuarioService.actualizarImagenPerfil(gmail, imagen);
 
             } else if ("mantener".equalsIgnoreCase(updateDTO.getImagenOpcion())) {
-                log.info("🖼️ Manteniendo imagen existente del usuario {}", gmail);
+                log.info("Manteniendo imagen existente del usuario {}", gmail);
 
             } else if ("ninguna".equalsIgnoreCase(updateDTO.getImagenOpcion())) {
-                log.info("🚫 Eliminando imagen del usuario {}", gmail);
+                log.info("Eliminando imagen del usuario {}", gmail);
                 usuarioService.eliminarImagenPerfil(gmail);
             }
 
-            // ============================
-            // 🔥 ACTUALIZACIÓN DEL SERVICIO
-            // ============================
             Servicio servicioActualizado = mapper.toDomain(updateDTO);
             servicioActualizado = Servicio.builder()
                     .id(id)
@@ -266,7 +243,7 @@ public class ServicioController {
             }
 
         } catch (Exception e) {
-            log.error("❌ Error al actualizar servicio: ", e);
+            log.error("Error al actualizar servicio: ", e);
             throw new RuntimeException("Error al procesar la solicitud: " + e.getMessage(), e);
         }
     }

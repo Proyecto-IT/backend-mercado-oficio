@@ -15,11 +15,10 @@ public interface UsuarioService {
     Usuario actualizarUsuarioPorGmail(String gmail, UsuarioUpdate usuarioUpdate);
     Usuario actualizarUsuario(Usuario usuario);
     Optional<Usuario> buscarPorGmail(String gmail);
-    Optional<Usuario> buscarPorId(Integer id); // Agregado método faltante
+    Optional<Usuario> buscarPorId(Integer id);
     void cambiarPassword(String gmail, CambioPasswordRequest request);
     void modificarPermisoUsuario(int id, int permiso); // Corregido tipo de retorno
-    String buscarGmailPorId(int id); // Corregido nombre del método
-    // Métodos para autenticación híbrida
+    String buscarGmailPorId(int id);
     void vincularGoogleAUsuario(String gmail);
     Usuario establecerPasswordLocalAUsuario(String gmail, String password);
     boolean puedeUsarMetodoAutenticacion(String gmail, String metodo);

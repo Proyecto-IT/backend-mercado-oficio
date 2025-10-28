@@ -36,7 +36,6 @@ public class UsuarioServiceImpl implements UsuarioService {
         try {
             usuario.validar();
 
-            // Verificar existencia usando cache
             if (cacheService.existePorGmailCached(usuario.getGmail())) {
                 log.warn("Intento de registro fallido: Gmail {} ya existe", usuario.getGmail());
                 throw new IllegalArgumentException("Ya existe un usuario con ese Gmail.");
@@ -49,7 +48,6 @@ public class UsuarioServiceImpl implements UsuarioService {
 
             Usuario usuarioGuardado = usuarioRepository.guardar(usuario);
 
-            // Actualizar cache después de crear
             cacheService.cachearUsuario(usuarioGuardado);
             cacheService.agregarUsuarioALista(usuarioGuardado);
 
@@ -96,17 +94,14 @@ public class UsuarioServiceImpl implements UsuarioService {
         log.info("Actualizando usuario por Gmail: {}", gmail);
 
         try {
-            // Buscar usando cache
             Usuario usuario = cacheService.buscarPorGmailCached(gmail)
                     .orElseThrow(() -> new IllegalArgumentException("El usuario a actualizar no existe"));
 
             usuarioRepository.actualizarUsuarioParcial(gmail, usuarioUpdate);
 
-            // Obtener usuario actualizado directamente de BD
             Usuario actualizado = usuarioRepository.buscarPorGmail(gmail)
                     .orElseThrow(() -> new RuntimeException("Error al obtener el usuario actualizado"));
 
-            // Actualizar cache
             cacheService.cachearUsuario(actualizado);
             cacheService.cachearUsuario(actualizado);
 
@@ -133,7 +128,6 @@ public class UsuarioServiceImpl implements UsuarioService {
 
             Usuario actualizado = usuarioRepository.guardar(usuario);
 
-            // Actualizar cache
             cacheService.cachearUsuario(actualizado);
             cacheService.cachearUsuario(actualizado);
 
@@ -179,7 +173,6 @@ public class UsuarioServiceImpl implements UsuarioService {
         try {
             request.validar();
 
-            // Buscar usando cache
             Usuario usuario = cacheService.buscarPorGmailCached(gmail)
                     .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
 
@@ -191,7 +184,6 @@ public class UsuarioServiceImpl implements UsuarioService {
             usuario.setPassword(passwordHasher.hash(request.getNuevaPassword()));
             Usuario actualizado = usuarioRepository.guardar(usuario);
 
-            // Actualizar cache
             cacheService.cachearUsuario(actualizado);
             cacheService.actualizarUsuarioEnLista(actualizado);
 
@@ -210,13 +202,11 @@ public class UsuarioServiceImpl implements UsuarioService {
         log.info("Modificando permiso del usuario con ID {} a {}", id, permiso);
 
         try {
-            // Buscar usando cache
             Usuario usuario = cacheService.buscarPorIdCached(id)
                     .orElseThrow(() -> new IllegalArgumentException("El usuario a modificar no existe"));
 
             usuarioRepository.modificarPermisoUsuario(id, permiso);
 
-            // Obtener usuario actualizado y actualizar cache
             Usuario actualizado = usuarioRepository.buscarPorId(id)
                     .orElseThrow(() -> new RuntimeException("Error al obtener usuario actualizado"));
 
@@ -237,7 +227,6 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Transactional(readOnly = true)
     public String buscarGmailPorId(int id) {
         try {
-            // Buscar usando cache
             Usuario usuario = cacheService.buscarPorIdCached(id)
                     .orElseThrow(() -> new IllegalArgumentException("El usuario no existe"));
 
@@ -257,7 +246,6 @@ public class UsuarioServiceImpl implements UsuarioService {
         log.info("Vinculando Google a usuario: {}", gmail);
 
         try {
-            // Buscar usando cache
             Usuario usuario = cacheService.buscarPorGmailCached(gmail)
                     .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
 
@@ -269,7 +257,6 @@ public class UsuarioServiceImpl implements UsuarioService {
             usuario.vincularGoogle();
             Usuario actualizado = usuarioRepository.guardar(usuario);
 
-            // Actualizar cache
             cacheService.cachearUsuario(actualizado);
             cacheService.actualizarUsuarioEnLista(actualizado);
 
@@ -288,7 +275,6 @@ public class UsuarioServiceImpl implements UsuarioService {
         log.info("Estableciendo contraseña local para usuario: {}", gmail);
 
         try {
-            // Buscar usando cache
             Usuario usuario = cacheService.buscarPorGmailCached(gmail)
                     .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
 
@@ -305,7 +291,6 @@ public class UsuarioServiceImpl implements UsuarioService {
             usuario.establecerPasswordLocal(passwordHasher.hash(password));
             Usuario usuarioActualizado = usuarioRepository.guardar(usuario);
 
-            // Actualizar cache
             cacheService.cachearUsuario(usuarioActualizado);
             cacheService.actualizarUsuarioEnLista(usuarioActualizado);
 
@@ -324,19 +309,14 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Transactional
     public boolean actualizarImagenPerfil(String gmail, MultipartFile imagen) {
         try {
-            log.info("📸 Actualizando imagen de perfil para usuario: {}", gmail);
+            log.info("Actualizando imagen de perfil para usuario: {}", gmail);
 
-            // Buscar usuario
             Usuario usuario = usuarioRepository.buscarPorGmail(gmail)
                     .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + gmail));
 
-            // Convertir imagen a bytes
             byte[] imagenBytes = imagen.getBytes();
             String imagenTipo = imagen.getContentType();
 
-            log.info("📊 Tamaño de imagen: {} bytes, Tipo: {}", imagenBytes.length, imagenTipo);
-
-            // Actualizar usuario con nueva imagen
             Usuario usuarioActualizado = Usuario.builder()
                     .id(usuario.getId())
                     .nombre(usuario.getNombre())
@@ -350,26 +330,24 @@ public class UsuarioServiceImpl implements UsuarioService {
                     .cp(usuario.getCp())
                     .ciudad(usuario.getCiudad())
                     .telefono(usuario.getTelefono())
-                    .imagen(imagenBytes)  // 🔥 Nueva imagen
+                    .imagen(imagenBytes)
                     .imagenTipo(imagenTipo)
                     .build();
 
-            // Guardar en BD
             boolean actualizado = usuarioRepository.actualizarUsuario(usuarioActualizado);
 
             if (actualizado) {
-                // Actualizar cache
                 cacheService.sincronizarDespuesDeActualizar(usuarioActualizado);
-                log.info("✅ Imagen de perfil actualizada y cache sincronizado para: {}", gmail);
+                log.info("Imagen de perfil actualizada y cache sincronizado para: {}", gmail);
             }
 
             return actualizado;
 
         } catch (IOException e) {
-            log.error("❌ Error al leer imagen: {}", e.getMessage(), e);
+            log.error("Error al leer imagen: {}", e.getMessage(), e);
             throw new RuntimeException("Error al procesar la imagen", e);
         } catch (Exception e) {
-            log.error("❌ Error al actualizar imagen de perfil: {}", e.getMessage(), e);
+            log.error("Error al actualizar imagen de perfil: {}", e.getMessage(), e);
             throw new RuntimeException("Error al actualizar imagen de perfil", e);
         }
     }

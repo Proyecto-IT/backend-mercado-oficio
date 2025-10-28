@@ -9,8 +9,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class PortafolioMapper {
 
-    // ===== DTO -> DOMAIN =====
-
     public Portafolio toDomain(PortafolioRequestDTO dto, Integer servicioId) {
         return Portafolio.builder()
                 .servicioId(servicioId)
@@ -35,8 +33,6 @@ public class PortafolioMapper {
                 .build();
     }
 
-    // ===== DOMAIN -> DTO =====
-
     public PortafolioResponseDTO toResponseDTO(Portafolio portafolio) {
         return PortafolioResponseDTO.builder()
                 .id(portafolio.getId())
@@ -46,12 +42,9 @@ public class PortafolioMapper {
                 .build();
     }
 
-    // ===== DOMAIN -> ENTITY =====
-
     public PortafolioEntity toEntity(Portafolio portafolio) {
         PortafolioEntity entity = new PortafolioEntity();
         entity.setId(portafolio.getId());
-        // El servicio debe ser cargado del repositorio
         entity.setTitulo(portafolio.getTitulo());
         entity.setDescripcion(portafolio.getDescripcion());
         return entity;

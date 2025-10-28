@@ -1,19 +1,24 @@
 package com.proyecto_it.mercado_oficio.Mapper.Presupuesto.PresupuestoArchivo;
 
 import com.proyecto_it.mercado_oficio.Domain.Model.Servicio;
+import com.proyecto_it.mercado_oficio.Domain.ValueObjects.Disponibilidad;
 import com.proyecto_it.mercado_oficio.Domain.ValueObjects.EstadoPresupuesto;
+import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.HorarioServicioDTO;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoArchivo.PresupuestoArchivoDTO;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoServicioCreateDTO;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoServicioDTO;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoServicioUpdateDTO;
+import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Presupuesto.HorarioServicioEntity;
 import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Presupuesto.PresupuestoArchivo.PresupuestoArchivoEntity;
 import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Presupuesto.PresupuestoServicioEntity;
 import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Servicio.ServicioEntity;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.stream.Collectors;
 @Component
 public class PresupuestoServicioMapper {
+
     public PresupuestoServicioEntity toEntity(PresupuestoServicioDTO dto, Servicio servicio) {
         PresupuestoServicioEntity entity = new PresupuestoServicioEntity();
         entity.setIdCliente(dto.getIdCliente());
@@ -24,7 +29,6 @@ public class PresupuestoServicioMapper {
         entity.setDescripcionSolucion(dto.getDescripcionSolucion());
         entity.setEstado(dto.getEstado() != null ? dto.getEstado() : EstadoPresupuesto.PENDIENTE);
 
-        // Mapear Servicio modelo a ServicioEntity
         ServicioEntity servicioEntity = new ServicioEntity();
         servicioEntity.setId(servicio.getId());
         entity.setServicio(servicioEntity);
@@ -56,8 +60,23 @@ public class PresupuestoServicioMapper {
                     .collect(Collectors.toList()));
         }
 
+        // Mapear horarios seleccionados desde la disponibilidad del servicio
+        ServicioEntity servicio = entity.getServicio();
+        if (servicio != null && servicio.getDisponibilidad() != null) {
+            try {
+                Disponibilidad disp = Disponibilidad.fromJson(servicio.getDisponibilidad());
+                dto.setHorariosSeleccionados(disp.toHorariosDTO());
+            } catch (Exception e) {
+                dto.setHorariosSeleccionados(Collections.emptyList());
+                System.err.println("Error parseando disponibilidad: " + e.getMessage());
+            }
+        } else {
+            dto.setHorariosSeleccionados(Collections.emptyList());
+        }
+
         return dto;
     }
+
 
     public PresupuestoServicioEntity toEntity(PresupuestoServicioCreateDTO dto, ServicioEntity servicio, Integer idPrestador) {
         PresupuestoServicioEntity entity = new PresupuestoServicioEntity();
@@ -85,8 +104,22 @@ public class PresupuestoServicioMapper {
         if (dto.getEstado() != null) {
             entity.setEstado(dto.getEstado());
         }
-        entity.setRespondido(true);
 
+        // NUEVO: Mapear horarios seleccionados
+        if (dto.getHorariosSeleccionados() != null && !dto.getHorariosSeleccionados().isEmpty()) {
+            entity.getHorariosSeleccionados().clear();
+            for (HorarioServicioDTO horarioDTO : dto.getHorariosSeleccionados()) {
+                HorarioServicioEntity horarioEntity = new HorarioServicioEntity();
+                horarioEntity.setFecha(horarioDTO.getFecha());
+                horarioEntity.setHoraInicio(horarioDTO.getHoraInicio());
+                horarioEntity.setHoraFin(horarioDTO.getHoraFin());
+                horarioEntity.setDuracionHoras(horarioDTO.getDuracionHoras());
+                horarioEntity.setPresupuestoServicio(entity);
+                entity.getHorariosSeleccionados().add(horarioEntity);
+            }
+        }
+
+        entity.setRespondido(true);
     }
 
     public PresupuestoArchivoDTO archivoToDTO(PresupuestoArchivoEntity entity) {
@@ -100,6 +133,18 @@ public class PresupuestoServicioMapper {
         dto.setTipoArchivo(entity.getTipoArchivo());
         dto.setTamaniomB(entity.getTamanioMb());
         dto.setFechaCarga(entity.getFechaCarga());
+        return dto;
+    }
+
+    public HorarioServicioDTO horarioToDTO(HorarioServicioEntity entity) {
+        if (entity == null) return null;
+
+        HorarioServicioDTO dto = new HorarioServicioDTO();
+        dto.setId(entity.getId());
+        dto.setFecha(entity.getFecha());
+        dto.setHoraInicio(entity.getHoraInicio());
+        dto.setHoraFin(entity.getHoraFin());
+        dto.setDuracionHoras(entity.getDuracionHoras());
         return dto;
     }
 

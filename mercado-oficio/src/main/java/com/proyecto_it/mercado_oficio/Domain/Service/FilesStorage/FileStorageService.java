@@ -1,7 +1,6 @@
 package com.proyecto_it.mercado_oficio.Domain.Service.FilesStorage;
 
 
-import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,8 +31,12 @@ public class FileStorageService {
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new IllegalArgumentException("El archivo excede el tamaño máximo permitido (10MB)");
         }
+        String originalFileName = file.getOriginalFilename();
+        String extension = "";
+        if (originalFileName != null && originalFileName.contains(".")) {
+            extension = originalFileName.substring(originalFileName.lastIndexOf('.') + 1);
+        }
 
-        String extension = FilenameUtils.getExtension(file.getOriginalFilename());
         if (!isExtensionAllowed(extension)) {
             throw new IllegalArgumentException(
                     "Formato de archivo no permitido. Use: " + String.join(", ", ALLOWED_EXTENSIONS)
@@ -52,6 +55,7 @@ public class FileStorageService {
 
         return baseUrl + "/uploads/" + fileName;
     }
+
 
     public void eliminarImagen(String imageUrl) {
         if (imageUrl == null || imageUrl.isEmpty()) {

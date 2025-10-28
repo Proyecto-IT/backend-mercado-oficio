@@ -1,5 +1,6 @@
 package com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Servicio;
 
+import com.proyecto_it.mercado_oficio.Domain.ValueObjects.DisponibilidadConverter;
 import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Usuario.UsuarioEntity;
 import jakarta.persistence.*;
 import lombok.*;
@@ -32,6 +33,7 @@ public class ServicioEntity {
 
     @Column(name = "tarifa_hora", length = 64)
     private String tarifaHora;
+
 
     @Column(columnDefinition = "json")
     private String disponibilidad; // Guardado como JSON string

@@ -35,7 +35,7 @@ public class JwtSpecialTokenService {
     public String generateConfirmEmailToken(String nuevoEmail, String gmailActual) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("purpose", "confirm_email");
-        claims.put("gmailActual", gmailActual);  // agrego el email actual como claim extra
+        claims.put("gmailActual", gmailActual);
         return generateToken(claims, nuevoEmail, CONFIRM_EMAIL_TOKEN_EXPIRATION);
     }
 

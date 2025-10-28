@@ -24,16 +24,15 @@ public class RefreshTokenRepositoryImpl implements RefreshTokenRepository {
     @Override
     @Transactional
     public RefreshToken guardar(RefreshToken token) {
-        log.info("💾 Guardando refresh token para usuarioId={}", token.getUsuarioId());
+        log.info("Guardando refresh token para usuarioId={}", token.getUsuarioId());
 
-        // 🔥 DEBUG: Log del token que se guarda
-        log.info("🔍 TOKEN A GUARDAR: {}", token.getToken());
+        log.info("TOKEN A GUARDAR: {}", token.getToken());
 
         RefreshTokenEntity entity = mapper.toEntity(token);
         RefreshTokenEntity savedEntity = jpaRepository.save(entity);
 
-        log.info("✅ Refresh token guardado con id={}", savedEntity.getId());
-        log.info("🔍 TOKEN GUARDADO EN BD: {}", savedEntity.getToken());
+        log.info("Refresh token guardado con id={}", savedEntity.getId());
+        log.info("TOKEN GUARDADO EN BD: {}", savedEntity.getToken());
 
         return mapper.toDomain(savedEntity);
     }
@@ -41,16 +40,16 @@ public class RefreshTokenRepositoryImpl implements RefreshTokenRepository {
     @Override
     @Transactional(readOnly = true)
     public Optional<RefreshToken> buscarPorTokenYEstado(String token, String estado) {
-        log.info("🔍 Buscando refresh token '{}...' con estado '{}'",
+        log.info("Buscando refresh token '{}...' con estado '{}'",
                 token.substring(0, Math.min(20, token.length())), estado);
 
         Optional<RefreshToken> result = jpaRepository.findByTokenAndEstadoForUpdate(token, estado)
                 .map(mapper::toDomain);
 
         if (result.isPresent()) {
-            log.info("✅ Refresh token encontrado con id={}", result.get().getId());
+            log.info("Refresh token encontrado con id={}", result.get().getId());
         } else {
-            log.warn("❌ Refresh token NO encontrado para estado '{}'", estado);
+            log.warn("Refresh token NO encontrado para estado '{}'", estado);
         }
 
         return result;
@@ -59,12 +58,11 @@ public class RefreshTokenRepositoryImpl implements RefreshTokenRepository {
     @Override
     @Transactional
     public int expirarTokensPorUsuario(Integer usuarioId) {
-        log.info("📛 Expirando refresh tokens VALID para usuarioId={}", usuarioId);
+        log.info("Expirando refresh tokens VALID para usuarioId={}", usuarioId);
 
-        // 🔥 Retornar la cantidad de tokens expirados
         int updated = jpaRepository.expireTokensByUsuarioId(usuarioId);
 
-        log.info("✅ {} refresh tokens expirados para usuarioId={}", updated, usuarioId);
+        log.info("{} refresh tokens expirados para usuarioId={}", updated, usuarioId);
 
         return updated;
     }
@@ -72,14 +70,14 @@ public class RefreshTokenRepositoryImpl implements RefreshTokenRepository {
     @Override
     @Transactional(readOnly = true)
     public List<RefreshToken> buscarPorUsuarioYEstado(Integer usuarioId, String estado) {
-        log.info("🔍 Buscando refresh tokens para usuarioId={} con estado={}", usuarioId, estado);
+        log.info("Buscando refresh tokens para usuarioId={} con estado={}", usuarioId, estado);
 
         List<RefreshToken> tokens = jpaRepository.findAllByUsuarioIdAndEstado(usuarioId, estado)
                 .stream()
                 .map(mapper::toDomain)
                 .toList();
 
-        log.info("✅ {} refresh tokens encontrados para usuarioId={}", tokens.size(), usuarioId);
+        log.info("{} refresh tokens encontrados para usuarioId={}", tokens.size(), usuarioId);
         return tokens;
     }
 }

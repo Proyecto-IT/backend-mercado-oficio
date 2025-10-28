@@ -19,8 +19,6 @@ public class Servicio {
     private Especialidades especialidades;
     private String ubicacion;
     private Integer trabajosCompletados;
-
-    // Datos adicionales para respuestas
     private String nombreOficio;
     private String imagenUrl;
 

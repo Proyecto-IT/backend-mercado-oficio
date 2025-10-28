@@ -1,7 +1,9 @@
 package com.proyecto_it.mercado_oficio.Web;
 
+import com.proyecto_it.mercado_oficio.Domain.Model.PresupuestoServicio;
 import com.proyecto_it.mercado_oficio.Domain.Service.Servicio.PresupuestoServicio.PresupuestoServicioService;
 import com.proyecto_it.mercado_oficio.Domain.ValueObjects.EstadoPresupuesto;
+import com.proyecto_it.mercado_oficio.Exception.ResourceNotFoundException;
 import com.proyecto_it.mercado_oficio.Exception.ValidationException;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoArchivo.PresupuestoArchivoCreateDTO;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoArchivo.PresupuestoArchivoDTO;
@@ -18,6 +20,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +43,6 @@ public class PresupuestoServicioController {
     public ResponseEntity<PresupuestoServicioDTO> obtener(@PathVariable Integer id) {
         PresupuestoServicioDTO dto = presupuestoService.obtener(id);
 
-        // Obtener archivos sin contenido desde el otro endpoint
         List<PresupuestoArchivoDTO> archivos = presupuestoService.obtenerArchivos(id);
         dto.setArchivos(archivos);
 
@@ -110,5 +112,33 @@ public class PresupuestoServicioController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void eliminarArchivo(@PathVariable Integer archivoId) {
         presupuestoService.eliminarArchivo(archivoId);
+    }
+
+    @PatchMapping("/{id}/estado")
+    public ResponseEntity<?> actualizarEstado(
+            @PathVariable Integer id,
+            @RequestBody Map<String, String> request) {
+
+        String estadoStr = request.get("estado");
+        if (estadoStr == null || estadoStr.isEmpty()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "El estado es requerido"));
+        }
+
+        EstadoPresupuesto nuevoEstado;
+        try {
+            nuevoEstado = EstadoPresupuesto.valueOf(estadoStr);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("error", "Estado inválido: " + estadoStr));
+        }
+
+        PresupuestoServicioDTO actualizado = presupuestoService.actualizarEstado(id, nuevoEstado);
+        return ResponseEntity.ok(actualizado);
+    }
+    @GetMapping("/servicio/{servicioId}")
+    public ResponseEntity<List<PresupuestoServicioDTO>> obtenerPorServicio(@PathVariable Integer servicioId) {
+        log.info("Obteniendo presupuestos para servicio: {}", servicioId);
+        return ResponseEntity.ok(presupuestoService.obtenerPorServicio(servicioId));
     }
 }

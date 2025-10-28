@@ -7,7 +7,6 @@ import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.Presupuest
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoServicioCreateDTO;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoServicioDTO;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Presupuesto.PresupuestoServicioUpdateDTO;
-import org.apache.velocity.exception.ResourceNotFoundException;
 
 import java.util.List;
 public interface PresupuestoServicioService {
@@ -23,5 +22,7 @@ public interface PresupuestoServicioService {
     void eliminarArchivo(Integer archivoId);
     PresupuestoArchivoDTO obtenerPorId(Integer id);
     boolean estaRespondido(Integer presupuestoId);
+    PresupuestoServicioDTO actualizarEstado(Integer id, EstadoPresupuesto nuevoEstado);
+    List<PresupuestoServicioDTO> obtenerPorServicio(Integer servicioId);
 
 }

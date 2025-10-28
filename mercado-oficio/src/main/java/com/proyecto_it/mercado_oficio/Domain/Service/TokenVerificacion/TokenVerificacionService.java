@@ -7,6 +7,6 @@ import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Usuario
 import java.util.Optional;
 
 public interface TokenVerificacionService {
-    TokenVerificacion crearTokenParaUsuario(Integer usuarioId); // Corregido tipo
-    Optional<TokenVerificacion> validarToken(String token); // Corregido tipo de retorno
+    TokenVerificacion crearTokenParaUsuario(Integer usuarioId);
+    Optional<TokenVerificacion> validarToken(String token);
 }

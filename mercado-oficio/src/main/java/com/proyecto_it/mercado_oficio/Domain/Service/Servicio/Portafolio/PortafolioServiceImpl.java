@@ -24,43 +24,37 @@ public class PortafolioServiceImpl implements PortafolioService {
     @Override
     @Transactional(readOnly = true)
     public List<Portafolio> obtenerPortafoliosPorServicio(Integer servicioId) {
-        log.info("🔍 Obteniendo portafolios del servicio {} desde cache", servicioId);
+        log.info("Obteniendo portafolios del servicio {} desde cache", servicioId);
         return cacheService.obtenerPortafoliosPorServicioCached(servicioId);
     }
 
     @Override
     public Portafolio crearPortafolio(Portafolio portafolio) {
         try {
-            log.info("📝 Creando portafolio para servicio {}", portafolio.getServicioId());
-
-            // Validar que el servicio existe
+            log.info("Creando portafolio para servicio {}", portafolio.getServicioId());
             servicioRepository.findByIdWithDetails(portafolio.getServicioId())
                     .orElseThrow(() -> new RuntimeException(
                             "Servicio no encontrado: " + portafolio.getServicioId()));
 
-            // Validar datos del portafolio
             if (portafolio.getTitulo() == null || portafolio.getTitulo().trim().isEmpty()) {
                 throw new RuntimeException("El título del portafolio es requerido");
             }
 
-            // Guardar portafolio
             Portafolio portafolioGuardado = portafolioRepository.save(portafolio);
 
-            // 🔥 VALIDACIÓN: Verificar que se guardó correctamente
             if (portafolioGuardado == null || portafolioGuardado.getId() == null) {
                 throw new RuntimeException("Error al guardar el portafolio en la base de datos");
             }
 
-            // Sincronizar cache
             cacheService.sincronizarDespuesDeGuardar(portafolio.getServicioId());
 
-            log.info("✅ Portafolio {} creado para servicio {}",
+            log.info("Portafolio {} creado para servicio {}",
                     portafolioGuardado.getId(), portafolio.getServicioId());
 
             return portafolioGuardado;
 
         } catch (Exception e) {
-            log.error("❌ Error al crear portafolio: {}", e.getMessage(), e);
+            log.error("Error al crear portafolio: {}", e.getMessage(), e);
             throw new RuntimeException("Error al crear portafolio: " + e.getMessage(), e);
         }
     }
@@ -68,13 +62,10 @@ public class PortafolioServiceImpl implements PortafolioService {
     @Override
     public Portafolio actualizarPortafolio(Integer id, Portafolio portafolio) {
         try {
-            log.info("🔄 Actualizando portafolio {}", id);
-
-            // Obtener portafolio existente
+            log.info("Actualizando portafolio {}", id);
             Portafolio portafolioExistente = portafolioRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Portafolio no encontrado: " + id));
 
-            // Actualizar campos
             Portafolio portafolioActualizado = Portafolio.builder()
                     .id(id)
                     .servicioId(portafolioExistente.getServicioId())
@@ -84,23 +75,20 @@ public class PortafolioServiceImpl implements PortafolioService {
                             portafolio.getDescripcion() : portafolioExistente.getDescripcion())
                     .build();
 
-            // Guardar cambios
             Portafolio portafolioGuardado = portafolioRepository.save(portafolioActualizado);
 
-            // 🔥 VALIDACIÓN
             if (portafolioGuardado == null || portafolioGuardado.getId() == null) {
                 throw new RuntimeException("Error al actualizar el portafolio en la base de datos");
             }
 
-            // Sincronizar cache
             cacheService.sincronizarDespuesDeGuardar(portafolioExistente.getServicioId());
 
-            log.info("✅ Portafolio {} actualizado", id);
+            log.info("Portafolio {} actualizado", id);
 
             return portafolioGuardado;
 
         } catch (Exception e) {
-            log.error("❌ Error al actualizar portafolio {}: {}", id, e.getMessage(), e);
+            log.error("Error al actualizar portafolio {}: {}", id, e.getMessage(), e);
             throw new RuntimeException("Error al actualizar portafolio: " + e.getMessage(), e);
         }
     }
@@ -108,24 +96,21 @@ public class PortafolioServiceImpl implements PortafolioService {
     @Override
     public void eliminarPortafolio(Integer id) {
         try {
-            log.info("🗑️ Eliminando portafolio {}", id);
+            log.info("🗑Eliminando portafolio {}", id);
 
-            // Obtener portafolio para tener el servicioId antes de eliminar
             Portafolio portafolio = portafolioRepository.findById(id)
                     .orElseThrow(() -> new RuntimeException("Portafolio no encontrado: " + id));
 
             Integer servicioId = portafolio.getServicioId();
 
-            // Eliminar portafolio
             portafolioRepository.deleteById(id);
 
-            // Sincronizar cache
             cacheService.sincronizarDespuesDeGuardar(servicioId);
 
-            log.info("✅ Portafolio {} eliminado correctamente", id);
+            log.info("Portafolio {} eliminado correctamente", id);
 
         } catch (Exception e) {
-            log.error("❌ Error al eliminar portafolio {}: {}", id, e.getMessage(), e);
+            log.error("Error al eliminar portafolio {}: {}", id, e.getMessage(), e);
             throw new RuntimeException("Error al eliminar portafolio: " + e.getMessage(), e);
         }
     }
@@ -133,28 +118,8 @@ public class PortafolioServiceImpl implements PortafolioService {
     @Override
     @Transactional(readOnly = true)
     public Portafolio obtenerPortafolioPorId(Integer id) {
-        log.info("🔍 Obteniendo portafolio {}", id);
+        log.info("Obteniendo portafolio {}", id);
         return portafolioRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Portafolio no encontrado: " + id));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public void validarPermisos(Integer portafolioId, Integer usuarioId) {
-        log.info("🔐 Validando permisos para portafolio {} y usuario {}", portafolioId, usuarioId);
-
-        // Obtener portafolio
-        Portafolio portafolio = obtenerPortafolioPorId(portafolioId);
-
-        // Obtener servicio asociado
-        Servicio servicio = servicioRepository.findByIdWithDetails(portafolio.getServicioId())
-                .orElseThrow(() -> new RuntimeException("Servicio no encontrado"));
-
-        // Verificar que el usuario sea el dueño del servicio
-        if (!servicio.getUsuarioId().equals(usuarioId)) {
-            throw new RuntimeException("No tienes permisos para modificar este portafolio");
-        }
-
-        log.info("✅ Permisos validados correctamente");
     }
 }

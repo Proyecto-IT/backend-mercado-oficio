@@ -10,5 +10,4 @@ public interface PortafolioService {
     Portafolio actualizarPortafolio(Integer id, Portafolio portafolio);
     void eliminarPortafolio(Integer id);
     Portafolio obtenerPortafolioPorId(Integer id);
-    void validarPermisos(Integer portafolioId, Integer usuarioId);
 }

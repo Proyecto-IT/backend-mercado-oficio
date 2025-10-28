@@ -33,8 +33,10 @@ public class PresupuestoServicioDTO {
     private Boolean respondido;
     private String nombrePrestador;
     private String apellidoPrestador;
+    private String disponibilidad; // contendrá el JSON
+    private List<HorarioServicioDTO> horariosSeleccionados;
 
-    // Constructor para JPQL sin archivos
+    // FindByPrestador
     public PresupuestoServicioDTO(Integer id, Integer servicioId, Integer idCliente,
                                   String nombreCliente, String apellidoCliente,
                                   String descripcionProblema, LocalDateTime fechaCreacion,
@@ -49,14 +51,69 @@ public class PresupuestoServicioDTO {
         this.estado = estado;
         this.tarifaHora = tarifaHora;
     }
-    // Constructor para JPQL
-    public PresupuestoServicioDTO(Integer id, Integer servicioId, Integer idCliente,
-                                  String nombreCliente, String apellidoCliente,
-                                  Integer idPrestador, String nombrePrestador, String apellidoPrestador,
-                                  String descripcionProblema, LocalDateTime fechaCreacion,
-                                  EstadoPresupuesto estado, String tarifaHora, Boolean respondido,
-                                  BigDecimal presupuesto, String descripcionSolucion, LocalDateTime fechaActualizacion,
-                                  BigDecimal costoMateriales, Double horasEstimadas) {
+    //FindById
+    public PresupuestoServicioDTO(
+            Integer id,
+            Integer servicioId,
+            Integer idCliente,
+            String nombreCliente,
+            String apellidoCliente,
+            Integer idPrestador,
+            String nombrePrestador,
+            String apellidoPrestador,
+            String descripcionProblema,
+            LocalDateTime fechaCreacion,
+            EstadoPresupuesto estado,
+            String tarifaHora,
+            Boolean respondido,
+            BigDecimal presupuesto,
+            String descripcionSolucion,
+            LocalDateTime fechaActualizacion,
+            BigDecimal costoMateriales,
+            Double horasEstimadas,
+            String disponibilidad
+    ) {
+        this.id = id;
+        this.servicioId = servicioId;
+        this.idCliente = idCliente;
+        this.nombreCliente = nombreCliente;
+        this.apellidoCliente = apellidoCliente;
+        this.idPrestador = idPrestador;
+        this.nombrePrestador = nombrePrestador;
+        this.apellidoPrestador = apellidoPrestador;
+        this.descripcionProblema = descripcionProblema;
+        this.fechaCreacion = fechaCreacion;
+        this.estado = estado;
+        this.tarifaHora = tarifaHora;
+        this.respondido = respondido;
+        this.presupuesto = presupuesto;
+        this.descripcionSolucion = descripcionSolucion;
+        this.fechaActualizacion = fechaActualizacion;
+        this.costoMateriales = costoMateriales;
+        this.horasEstimadas = horasEstimadas;
+        this.disponibilidad = disponibilidad; // el JSON de disponibilidad
+    }
+    //FindByClient
+    public PresupuestoServicioDTO(
+            Integer id,
+            Integer servicioId,
+            Integer idCliente,
+            String nombreCliente,
+            String apellidoCliente,
+            Integer idPrestador,
+            String nombrePrestador,
+            String apellidoPrestador,
+            String descripcionProblema,
+            LocalDateTime fechaCreacion,
+            EstadoPresupuesto estado,
+            String tarifaHora,
+            Boolean respondido,
+            BigDecimal presupuesto,
+            String descripcionSolucion,
+            LocalDateTime fechaActualizacion,
+            BigDecimal costoMateriales,
+            Double horasEstimadas
+    ) {
         this.id = id;
         this.servicioId = servicioId;
         this.idCliente = idCliente;
@@ -76,4 +133,6 @@ public class PresupuestoServicioDTO {
         this.costoMateriales = costoMateriales;
         this.horasEstimadas = horasEstimadas;
     }
+
+
 }
