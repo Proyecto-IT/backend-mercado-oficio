@@ -26,41 +26,37 @@ public class OficioCacheService {
     private final OficioRepository oficioRepository;
     private final CacheManager cacheManager;
 
-    // ==================== LECTURA CON CACHE ====================
-
     @Cacheable(value = "oficios", key = "#nombre.toLowerCase()")
     public List<Oficio> buscarPorNombreCached(String nombre) {
-        log.info("🔴 CACHE MISS - Consultando DB para oficio con nombre: {}", nombre);
+        log.info("Consultando DB para oficio con nombre: {}", nombre);
         return oficioRepository.buscarPorNombre(nombre);
     }
 
     @Cacheable(value = "oficiosPorId", key = "#id")
     public Optional<Oficio> buscarPorIdCached(Integer id) {
-        log.info("🔴 CACHE MISS - Consultando DB para oficio con ID: {}", id);
+        log.info("Consultando DB para oficio con ID: {}", id);
         return oficioRepository.buscarPorId(id);
     }
 
     @Cacheable(value = "todosLosOficios", key = "'ALL'")
     public List<Oficio> listarTodosCached() {
-        log.info("🔴 CACHE MISS - Consultando DB para todos los oficios");
+        log.info("Consultando DB para todos los oficios");
         return oficioRepository.findAll();
     }
-
-    // ==================== ACTUALIZACIÓN MANUAL ====================
 
     public void cachearOficio(Oficio oficio) {
         // Cachear por ID
         Cache cachePorId = cacheManager.getCache("oficiosPorId");
         if (cachePorId != null) {
             cachePorId.put(oficio.getId(), Optional.of(oficio));
-            log.info("✅ Oficio {} ({}) cacheado por ID", oficio.getId(), oficio.getNombre());
+            log.info("Oficio {} ({}) cacheado por ID", oficio.getId(), oficio.getNombre());
         }
 
         // Cachear por nombre
         Cache cachePorNombre = cacheManager.getCache("oficios");
         if (cachePorNombre != null) {
             cachePorNombre.put(oficio.getNombre().toLowerCase(), List.of(oficio));
-            log.info("✅ Oficio {} cacheado por nombre", oficio.getNombre());
+            log.info("Oficio {} cacheado por nombre", oficio.getNombre());
         }
     }
 
@@ -68,7 +64,7 @@ public class OficioCacheService {
         Cache cache = cacheManager.getCache("todosLosOficios");
         if (cache != null) {
             cache.put("ALL", new ArrayList<>(oficios));
-            log.info("✅ {} oficios cacheados en lista completa", oficios.size());
+            log.info("{} oficios cacheados en lista completa", oficios.size());
         }
     }
     public void actualizarOficioEnCache(Oficio oficio) {
@@ -76,14 +72,14 @@ public class OficioCacheService {
         Cache cachePorId = cacheManager.getCache("oficiosPorId");
         if (cachePorId != null) {
             cachePorId.put(oficio.getId(), Optional.of(oficio));
-            log.info("♻️ Oficio {} ({}) actualizado en cache por ID", oficio.getId(), oficio.getNombre());
+            log.info("Oficio {} ({}) actualizado en cache por ID", oficio.getId(), oficio.getNombre());
         }
 
         // === Actualizar cache por nombre ===
         Cache cachePorNombre = cacheManager.getCache("oficios");
         if (cachePorNombre != null) {
             cachePorNombre.put(oficio.getNombre().toLowerCase(), List.of(oficio));
-            log.info("♻️ Oficio {} actualizado en cache por nombre", oficio.getNombre());
+            log.info("Oficio {} actualizado en cache por nombre", oficio.getNombre());
         }
 
         // === Actualizar lista completa si ya está cacheada ===
@@ -104,18 +100,16 @@ public class OficioCacheService {
                     lista.add(oficio);
                 }
                 cacheLista.put("ALL", new ArrayList<>(lista));
-                log.info("♻️ Oficio {} sincronizado en la lista completa cacheada", oficio.getId());
+                log.info("Oficio {} sincronizado en la lista completa cacheada", oficio.getId());
             }
         }
     }
-
-    // ==================== EVICCIÓN ====================
 
     public void evictOficioPorId(Integer id) {
         Cache cache = cacheManager.getCache("oficiosPorId");
         if (cache != null) {
             cache.evict(id);
-            log.info("🗑️ Oficio {} eliminado del cache (por ID)", id);
+            log.info("Oficio {} eliminado del cache (por ID)", id);
         }
     }
 
@@ -123,7 +117,7 @@ public class OficioCacheService {
         Cache cache = cacheManager.getCache("oficios");
         if (cache != null) {
             cache.evict(nombre.toLowerCase());
-            log.info("🗑️ Oficio {} eliminado del cache (por nombre)", nombre);
+            log.info("Oficio {} eliminado del cache (por nombre)", nombre);
         }
     }
 
@@ -131,39 +125,35 @@ public class OficioCacheService {
         Cache cache = cacheManager.getCache("todosLosOficios");
         if (cache != null) {
             cache.clear();
-            log.info("🗑️ Lista completa de oficios eliminada del cache");
+            log.info("Lista completa de oficios eliminada del cache");
         }
     }
-
-    // ==================== SINCRONIZACIÓN ====================
 
     public void sincronizarDespuesDeCrear(Oficio oficio) {
         cachearOficio(oficio);
         evictTodosLosOficios();
-        log.info("✅ Cache sincronizado después de crear oficio {}", oficio.getId());
+        log.info("Cache sincronizado después de crear oficio {}", oficio.getId());
     }
 
     public void sincronizarDespuesDeActualizar(Oficio oficio) {
         cachearOficio(oficio);
         evictTodosLosOficios();
-        log.info("✅ Cache sincronizado después de actualizar oficio {}", oficio.getId());
+        log.info("Cache sincronizado después de actualizar oficio {}", oficio.getId());
     }
 
     public void sincronizarDespuesDeEliminar(Integer id, String nombre) {
         evictOficioPorId(id);
         evictOficioPorNombre(nombre);
         evictTodosLosOficios();
-        log.info("✅ Cache sincronizado después de eliminar oficio {}", id);
+        log.info("Cache sincronizado después de eliminar oficio {}", id);
     }
-
-    // ==================== VERIFICACIÓN ====================
 
     public boolean existeEnCachePorId(Integer id) {
         Cache cache = cacheManager.getCache("oficiosPorId");
         if (cache != null) {
             Cache.ValueWrapper wrapper = cache.get(id);
             boolean existe = wrapper != null;
-            log.info("🔍 Oficio {} en cache: {}", id, existe ? "✅ SÍ" : "❌ NO");
+            log.info("Oficio {} en cache: {}", id, existe ? "SÍ" : "NO");
             return existe;
         }
         return false;
