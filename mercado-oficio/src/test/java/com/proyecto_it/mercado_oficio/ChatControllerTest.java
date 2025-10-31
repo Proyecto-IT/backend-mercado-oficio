@@ -20,6 +20,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.test.context.ActiveProfiles;
+
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -30,6 +34,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+@SpringBootTest(classes = ChatController.class)
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
 @ExtendWith(MockitoExtension.class)
 class ChatControllerTest {
 

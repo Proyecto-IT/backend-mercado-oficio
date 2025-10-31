@@ -1,70 +1,93 @@
 package com.proyecto_it.mercado_oficio.Web.WebSocket;
 
-import com.proyecto_it.mercado_oficio.Domain.Service.JWT.JwtTokenService;
 import com.proyecto_it.mercado_oficio.Security.SecurityConfig.JWT.CustomUserDetailsService;
+import com.proyecto_it.mercado_oficio.Security.SecurityConfig.JWT.JwtService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
+import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
-import org.springframework.messaging.simp.stomp.StompCommand;
 
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class AuthChannelInterceptor implements ChannelInterceptor {
 
-    private final JwtTokenService jwtTokenService;
+    private final JwtService jwtService;
     private final CustomUserDetailsService customUserDetailsService;
-
-    public AuthChannelInterceptor(JwtTokenService jwtTokenService,
-                                  CustomUserDetailsService customUserDetailsService) {
-        this.jwtTokenService = jwtTokenService;
-        this.customUserDetailsService = customUserDetailsService;
-    }
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
-        //Accede a los headers STOMP
-        StompHeaderAccessor accessor = StompHeaderAccessor.wrap(message);
+        StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
-        if (StompCommand.CONNECT.equals(accessor.getCommand()) ||
-                StompCommand.SEND.equals(accessor.getCommand())) {
+        if (accessor != null &&
+                (StompCommand.CONNECT.equals(accessor.getCommand()) ||
+                        StompCommand.SEND.equals(accessor.getCommand()))) {
 
-            String token = null;
+            String token = extraerToken(accessor);
 
-            // Puede venir en el header "Authorization"
-            if (accessor.getNativeHeader("Authorization") != null &&
-                    !accessor.getNativeHeader("Authorization").isEmpty()) {
-                token = accessor.getFirstNativeHeader("Authorization");
-            }
+            if (token != null) {
+                try {
+                    String username = jwtService.extractUsername(token);
 
-            // O puede venir en la query del WebSocket (si lo mandás por URL)
-            if (token == null && accessor.getNativeHeader("token") != null) {
-                token = accessor.getFirstNativeHeader("token");
-            }
+                    // Validar el token con el username
+                    if (jwtService.isTokenValid(token, username)) {
 
-            if (token != null && token.startsWith("Bearer ")) {
-                token = token.substring(7); // Quita "Bearer "
-            }
+                        UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
 
-            if (token != null && jwtTokenService.validateToken(token)) {
-                String username = jwtTokenService.getUsernameFromToken(token);
-                UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
+                        UsernamePasswordAuthenticationToken authentication =
+                                new UsernamePasswordAuthenticationToken(
+                                        userDetails,
+                                        null,
+                                        userDetails.getAuthorities()
+                                );
 
-                // Crea el objeto de autenticación
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails, null, userDetails.getAuthorities());
+                        // Asociar el usuario autenticado al mensaje WebSocket
+                        accessor.setUser(authentication);
 
-                // Asigna el usuario autenticado al mensaje
-                accessor.setUser(authentication);
+                        log.info("✅ Usuario autenticado en WebSocket: {}", username);
+                    } else {
+                        log.warn("⚠️ Token JWT inválido o expirado en WebSocket");
+                    }
+                } catch (Exception e) {
+                    log.error("❌ Error al autenticar usuario en WebSocket: {}", e.getMessage());
+                }
             } else {
-                // Si el token no es válido, se puede bloquear la conexión o dejar sin usuario
-                System.out.println("Token inválido o ausente en WebSocket: " + token);
+                log.warn("⚠️ No se encontró token en la conexión WebSocket");
             }
         }
 
         return message;
+    }
+
+    /**
+     * Extrae el token JWT de los headers STOMP.
+     */
+    private String extraerToken(StompHeaderAccessor accessor) {
+        String token = null;
+
+        // Intentar desde el header "Authorization"
+        if (accessor.getNativeHeader("Authorization") != null &&
+                !accessor.getNativeHeader("Authorization").isEmpty()) {
+            token = accessor.getFirstNativeHeader("Authorization");
+        }
+
+        // Intentar desde el header "token"
+        if (token == null && accessor.getNativeHeader("token") != null) {
+            token = accessor.getFirstNativeHeader("token");
+        }
+
+        // Limpiar el prefijo "Bearer " si existe
+        if (token != null && token.startsWith("Bearer ")) {
+            token = token.substring(7);
+        }
+
+        return token;
     }
 }

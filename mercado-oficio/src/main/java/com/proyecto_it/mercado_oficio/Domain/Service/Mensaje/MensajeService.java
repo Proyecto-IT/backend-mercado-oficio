@@ -8,8 +8,8 @@ import java.util.List;
 
 public interface MensajeService {
     Mensaje enviarMensaje(Mensaje mensaje, List<MultipartFile> archivos);
-    Mensaje obtenerMensajePorId(Integer id);
+    Mensaje obtenerMensajePorId(Long id);
     List<Mensaje> obtenerMensajesDeChat(Integer usuario1Id, Integer usuario2Id);
-    List<Multimedia> obtenerArchivosAdjuntos(Integer mensajeId);
-    void eliminarMensaje(Integer id);
+    List<Multimedia> obtenerArchivosAdjuntos(Long mensajeId);
+    void eliminarMensaje(Long id);
 }

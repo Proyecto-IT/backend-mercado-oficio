@@ -46,13 +46,16 @@ public class MensajeCacheProxy implements MensajeService {
      * Obtener mensaje por ID - intenta desde caché primero
      */
     @Override
-    public Mensaje obtenerMensajePorId(Integer id) {
+    public Mensaje obtenerMensajePorId(Long id) {
         log.info("🔍 Buscando mensaje con ID: {}", id);
 
+        // Convertir Long a Integer para el caché
+        Integer idInt = id.intValue();
+
         // Intentar obtener del caché
-        if (cacheService.existeMensajeEnCache(id)) {
+        if (cacheService.existeMensajeEnCache(idInt)) {
             log.info("✅ Mensaje {} encontrado en caché", id);
-            return cacheService.obtenerMensajePorIdCached(id).orElse(null);
+            return cacheService.obtenerMensajePorIdCached(idInt).orElse(null);
         }
 
         // Si no está en caché, obtener de BD
@@ -60,7 +63,9 @@ public class MensajeCacheProxy implements MensajeService {
         Mensaje mensaje = mensajeServiceImpl.obtenerMensajePorId(id);
 
         // Cachear para próximas consultas
-        cacheService.cachearMensaje(mensaje);
+        if (mensaje != null) {
+            cacheService.cachearMensaje(mensaje);
+        }
 
         return mensaje;
     }
@@ -97,7 +102,7 @@ public class MensajeCacheProxy implements MensajeService {
      * Obtener archivos adjuntos de un mensaje
      */
     @Override
-    public List<Multimedia> obtenerArchivosAdjuntos(Integer mensajeId) {
+    public List<Multimedia> obtenerArchivosAdjuntos(Long mensajeId) {
         log.info("📎 Obteniendo archivos adjuntos del mensaje: {}", mensajeId);
         return mensajeServiceImpl.obtenerArchivosAdjuntos(mensajeId);
     }
@@ -111,7 +116,10 @@ public class MensajeCacheProxy implements MensajeService {
         // Intentar obtener del caché
         if (cacheService.existeMultimediaEnCache(id)) {
             log.info("✅ Multimedia {} encontrado en caché", id);
-            return cacheService.obtenerMultimediaPorIdCached(id).orElse(null);
+            Multimedia multimedia = cacheService.obtenerMultimediaPorIdCached(id).orElse(null);
+            if (multimedia != null) {
+                return multimedia;
+            }
         }
 
         // Si no está en caché, obtener de BD
@@ -119,9 +127,11 @@ public class MensajeCacheProxy implements MensajeService {
         Multimedia multimedia = mensajeServiceImpl.obtenerMultimediaCompleto(id);
 
         // Cachear para próximas consultas
-        cacheService.cachearMultimedia(multimedia);
-        log.info("✅ Multimedia {} cacheado ({}, {})", id, multimedia.getNombre(),
-                formatearTamano(multimedia.getTamano()));
+        if (multimedia != null) {
+            cacheService.cachearMultimedia(multimedia);
+            log.info("✅ Multimedia {} cacheado ({}, {})", id, multimedia.getNombre(),
+                    formatearTamano(multimedia.getTamano()));
+        }
 
         return multimedia;
     }
@@ -130,7 +140,7 @@ public class MensajeCacheProxy implements MensajeService {
      * Eliminar mensaje - elimina de BD y limpia caché
      */
     @Override
-    public void eliminarMensaje(Integer id) {
+    public void eliminarMensaje(Long id) {
         log.info("🗑️ Eliminando mensaje con ID: {}", id);
 
         // Obtener información del mensaje antes de eliminarlo
@@ -140,7 +150,13 @@ public class MensajeCacheProxy implements MensajeService {
         mensajeServiceImpl.eliminarMensaje(id);
 
         // Sincronizar caché
-        cacheService.sincronizarDespuesDeEliminarMensaje(id, mensaje.getEmisorId(), mensaje.getReceptorId());
+        if (mensaje != null) {
+            cacheService.sincronizarDespuesDeEliminarMensaje(
+                    mensaje.getId(),
+                    mensaje.getEmisorId(),
+                    mensaje.getReceptorId()
+            );
+        }
     }
 
     // ==================== MÉTODOS DE GESTIÓN DE CACHÉ ====================
@@ -168,8 +184,10 @@ public class MensajeCacheProxy implements MensajeService {
 
         try {
             Multimedia multimedia = mensajeServiceImpl.obtenerMultimediaCompleto(multimediaId);
-            cacheService.cachearMultimedia(multimedia);
-            log.info("✅ Multimedia {} precargado ({})", multimediaId, multimedia.getNombre());
+            if (multimedia != null) {
+                cacheService.cachearMultimedia(multimedia);
+                log.info("✅ Multimedia {} precargado ({})", multimediaId, multimedia.getNombre());
+            }
         } catch (Exception e) {
             log.error("❌ Error al precargar multimedia {}: {}", multimediaId, e.getMessage(), e);
         }

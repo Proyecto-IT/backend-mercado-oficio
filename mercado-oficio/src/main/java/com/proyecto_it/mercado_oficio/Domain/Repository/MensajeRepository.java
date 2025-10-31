@@ -8,8 +8,9 @@ import java.util.Optional;
 
 public interface MensajeRepository {
     Mensaje guardar(Mensaje mensaje);
-    Optional<Mensaje> findById(Integer id);
+    Optional<Mensaje> findById(Long id);
     List<Mensaje> findByChat(Integer emisorId, Integer receptorId);
-    List<Multimedia> getArchivos(Integer id);
-    void deleteById(Integer id);
+    List<Multimedia> getArchivosMensaje(Long id);
+    void deleteById(Long id);
+    boolean existsById(Long id);
 }

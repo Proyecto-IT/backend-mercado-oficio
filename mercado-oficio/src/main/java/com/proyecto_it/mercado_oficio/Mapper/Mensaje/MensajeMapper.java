@@ -5,6 +5,7 @@ import com.proyecto_it.mercado_oficio.Domain.Model.Multimedia;
 import com.proyecto_it.mercado_oficio.Domain.Service.Mensaje.VideoThumbnailService;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Mensaje.MensajeRequest;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Mensaje.MensajeResponse;
+import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Mensaje.MensajeResponseConArchivos;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Mensaje.MultimediaDTO;
 import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Mensaje.MensajeEntity;
 import lombok.RequiredArgsConstructor;
@@ -47,25 +48,9 @@ public class MensajeMapper {
     }
 
     /**
-     * Convierte a Response SIN archivos (para WebSocket - ligero)
+     * Convierte a Response con archivos y previews
      */
-    public MensajeResponse toResponseSinArchivos(Mensaje domain) {
-        if (domain == null) return null;
-
-        return MensajeResponse.builder()
-                .id(domain.getId())
-                .emisorId(domain.getEmisorId())
-                .receptorId(domain.getReceptorId())
-                .contenido(domain.getContenido())
-                .fechaEnvio(domain.getFechaEnvio())
-                .tieneArchivos(domain.getMultimediaIds() != null && !domain.getMultimediaIds().isEmpty())
-                .build();
-    }
-
-    /**
-     * Convierte a Response CON archivos y previews (para historial HTTP)
-     */
-    public MensajeResponse toResponseConArchivos(Mensaje domain, List<Multimedia> archivos) {
+    public MensajeResponseConArchivos toResponseConArchivos(Mensaje domain, List<Multimedia> archivos) {
         if (domain == null) return null;
 
         List<MultimediaDTO> archivosDTO = archivos != null
@@ -74,13 +59,12 @@ public class MensajeMapper {
                 .collect(Collectors.toList())
                 : null;
 
-        return MensajeResponse.builder()
+        return MensajeResponseConArchivos.builder()
                 .id(domain.getId())
                 .emisorId(domain.getEmisorId())
                 .receptorId(domain.getReceptorId())
                 .contenido(domain.getContenido())
                 .fechaEnvio(domain.getFechaEnvio())
-                .tieneArchivos(archivosDTO != null && !archivosDTO.isEmpty())
                 .archivos(archivosDTO)
                 .build();
     }
@@ -117,11 +101,10 @@ public class MensajeMapper {
         return MultimediaDTO.builder()
                 .id(multimedia.getId())
                 .nombre(multimedia.getNombre())
-                .tipoContenido(multimedia.getTipoContenido())
                 .extension(multimedia.getExtension())
                 .tamano(multimedia.getTamano())
                 .urlDescarga("/api/chat/archivo/" + multimedia.getId())
-                .tipoArchivo(tipo)
+                .TipoArchivo(tipo)
                 .base64Preview(base64Preview)
                 .thumbnailBase64(thumbnailBase64)
                 .build();

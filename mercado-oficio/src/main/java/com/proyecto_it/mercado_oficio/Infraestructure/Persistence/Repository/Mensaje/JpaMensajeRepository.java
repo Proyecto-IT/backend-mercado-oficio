@@ -9,7 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface JpaMensajeRepository extends JpaRepository<MensajeEntity, Integer> {
+public interface JpaMensajeRepository extends JpaRepository<MensajeEntity, Long> {
 
     @Query("SELECT m FROM MensajeEntity m WHERE " +
             "(m.emisorId = :usuario1Id AND m.receptorId = :usuario2Id) OR " +

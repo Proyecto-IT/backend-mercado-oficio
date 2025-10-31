@@ -6,6 +6,7 @@ import com.proyecto_it.mercado_oficio.Domain.Service.Mensaje.MensajeService;
 import com.proyecto_it.mercado_oficio.Domain.Service.Mensaje.MensajeServiceImpl;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Mensaje.MensajeRequest;
 import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Mensaje.MensajeResponse;
+import com.proyecto_it.mercado_oficio.Infraestructure.DTO.Mensaje.MensajeResponseConArchivos;
 import com.proyecto_it.mercado_oficio.Mapper.Mensaje.MensajeMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +41,7 @@ public class ChatController {
      * luego guarda el mensaje con los IDs en multimedia_ids (JSON)
      */
     @PostMapping("/enviar")
-    public ResponseEntity<MensajeResponse> enviarMensaje(
+    public ResponseEntity<MensajeResponseConArchivos> enviarMensaje(
             @RequestParam("emisorId") Integer emisorId,
             @RequestParam("receptorId") Integer receptorId,
             @RequestParam(value = "contenido", required = false) String contenido,
@@ -62,7 +63,7 @@ public class ChatController {
 
         // Cargar archivos con base64 para imágenes y thumbnails para videos
         List<Multimedia> archivosMultimedia = mensajeService.obtenerArchivosAdjuntos(mensajeGuardado.getId());
-        MensajeResponse response = mensajeMapper.toResponseConArchivos(mensajeGuardado, archivosMultimedia);
+        MensajeResponseConArchivos response = mensajeMapper.toResponseConArchivos(mensajeGuardado, archivosMultimedia);
 
         // Enviar notificación en tiempo real al receptor vía WebSocket
         messagingTemplate.convertAndSendToUser(
@@ -84,7 +85,7 @@ public class ChatController {
      * - Otros archivos: solo metadatos con urlDescarga
      */
     @GetMapping("/historial")
-    public ResponseEntity<List<MensajeResponse>> obtenerChat(
+    public ResponseEntity<List<MensajeResponseConArchivos>> obtenerChat(
             @RequestParam("usuarioId1") Integer usuario1Id,
             @RequestParam("usuarioId2") Integer usuario2Id) {
 
@@ -93,7 +94,7 @@ public class ChatController {
         List<Mensaje> mensajes = mensajeService.obtenerMensajesDeChat(usuario1Id, usuario2Id);
 
         // Cargar archivos para cada mensaje con base64/thumbnails
-        List<MensajeResponse> responses = mensajes.stream()
+        List<MensajeResponseConArchivos> responses = mensajes.stream()
                 .map(mensaje -> {
                     List<Multimedia> archivos = mensajeService.obtenerArchivosAdjuntos(mensaje.getId());
                     return mensajeMapper.toResponseConArchivos(mensaje, archivos);
@@ -107,12 +108,12 @@ public class ChatController {
 
 
     @GetMapping("/mensaje/{id}")
-    public ResponseEntity<MensajeResponse> obtenerMensaje(@PathVariable Integer id) {
+    public ResponseEntity<MensajeResponseConArchivos> obtenerMensaje(@PathVariable Long id) {
         log.info("Obteniendo mensaje con ID: {}", id);
 
         Mensaje mensaje = mensajeService.obtenerMensajePorId(id);
         List<Multimedia> archivos = mensajeService.obtenerArchivosAdjuntos(id);
-        MensajeResponse response = mensajeMapper.toResponseConArchivos(mensaje, archivos);
+        MensajeResponseConArchivos response = mensajeMapper.toResponseConArchivos(mensaje, archivos);
 
         return ResponseEntity.ok(response);
     }

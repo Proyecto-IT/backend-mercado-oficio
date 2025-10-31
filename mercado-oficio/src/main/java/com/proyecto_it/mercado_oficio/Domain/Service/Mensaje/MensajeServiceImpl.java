@@ -29,10 +29,7 @@ public class MensajeServiceImpl implements MensajeService {
     public Mensaje enviarMensaje(Mensaje mensaje, List<MultipartFile> archivos) {
         log.info("Enviando mensaje de usuario {} a usuario {}",
                 mensaje.getEmisorId(), mensaje.getReceptorId());
-
-        if (!mensaje.validar()) {
-            throw new IllegalArgumentException("El mensaje no es válido");
-        }
+        mensaje.validar();
 
         // Procesar archivos adjuntos si existen
         List<Integer> multimediaIds = new ArrayList<>();
@@ -48,7 +45,7 @@ public class MensajeServiceImpl implements MensajeService {
     }
 
     @Override
-    public Mensaje obtenerMensajePorId(Integer id) {
+    public Mensaje obtenerMensajePorId(Long id) {
         log.info("Obteniendo mensaje con ID: {}", id);
         return mensajeRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Mensaje no encontrado con ID: " + id));
@@ -73,7 +70,7 @@ public class MensajeServiceImpl implements MensajeService {
     }
 
     @Override
-    public List<Multimedia> obtenerArchivosAdjuntos(Integer mensajeId) {
+    public List<Multimedia> obtenerArchivosAdjuntos(Long mensajeId) {
         log.info("Obteniendo archivos adjuntos del mensaje: {}", mensajeId);
 
         Mensaje mensaje = obtenerMensajePorId(mensajeId);
@@ -83,20 +80,21 @@ public class MensajeServiceImpl implements MensajeService {
             return new ArrayList<>();
         }
 
-        List<Multimedia> archivos = multimediaRepository.findByIds(mensaje.getMultimediaIds());
+        List<Multimedia> archivos = mensajeRepository.getArchivosMensaje(mensajeId);
         log.info("Se encontraron {} archivos adjuntos", archivos.size());
 
         return archivos;
     }
 
+    public Multimedia obtenerMultimediaCompleto(Integer id) {
+        return multimediaRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Archivo no encontrado con ID: " + id));
+    }
+
     @Override
     @Transactional
-    public void eliminarMensaje(Integer id) {
+    public void eliminarMensaje(Long id) {
         log.info("Eliminando mensaje con ID: {}", id);
-
-        if (!mensajeRepository.existsById(id)) {
-            throw new RuntimeException("Mensaje no encontrado con ID: " + id);
-        }
 
         // Obtener archivos adjuntos para eliminarlos también
         Mensaje mensaje = obtenerMensajePorId(id);
@@ -129,10 +127,7 @@ public class MensajeServiceImpl implements MensajeService {
                     .datos(file.getBytes())
                     .build();
 
-            // Validar archivo
-            if (!multimedia.validar()) {
-                throw new IllegalArgumentException("Archivo no válido: " + nombreOriginal);
-            }
+            multimedia.validar();
 
             Multimedia guardado = multimediaRepository.guardar(multimedia);
             log.info("Archivo guardado: {} con ID: {}", nombreOriginal, guardado.getId());

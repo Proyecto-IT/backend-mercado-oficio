@@ -14,13 +14,13 @@ import lombok.ToString;
 public class Multimedia {
     private Integer id;
     private String nombre;
-    private String tipoContenido;
+    private String tipoContenido; //MIME
     private String extension;
     @ToString.Exclude
     private byte[] datos;
 
     // Validación de tipos de archivo permitidos
-    private static final long MAX_FILE_SIZE = 200 * 1024 * 1024; // 10MB
+    private static final long MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB
     private static final String[] ALLOWED_TYPES = {
             "image/jpeg", "image/png", "image/gif", "image/webp",
             "application/pdf",

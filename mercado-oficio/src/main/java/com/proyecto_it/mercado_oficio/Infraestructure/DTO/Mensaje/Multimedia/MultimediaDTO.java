@@ -12,8 +12,8 @@ import lombok.NoArgsConstructor;
 public class MultimediaDTO {
     private Integer id;
     private String nombre;
-    private String tipoContenido;
     private String extension;
+    private TipoArchivo TipoArchivo;
     private Long tamano;
 
     // Para imágenes: base64 completo para mostrar directamente
@@ -22,8 +22,7 @@ public class MultimediaDTO {
     // Para videos: primer frame en base64
     private String thumbnailBase64;
 
-    // Indica el tipo de archivo para el frontend
-    private TipoArchivo tipoArchivo;
+    private String urlDescarga;
 
     public enum TipoArchivo {
         IMAGEN,      // Mostrar directamente con base64Preview

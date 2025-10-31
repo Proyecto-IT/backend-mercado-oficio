@@ -12,12 +12,11 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MensajeResponse {
+public class MensajeResponseConArchivos {
     private Long id;
     private Integer emisorId;
     private Integer receptorId;
     private String contenido;
-    private List<Integer> multimediaIds;
+    private List<MultimediaDTO> archivos;
     private LocalDateTime fechaEnvio;
-    private Boolean tieneArchivos;
 }

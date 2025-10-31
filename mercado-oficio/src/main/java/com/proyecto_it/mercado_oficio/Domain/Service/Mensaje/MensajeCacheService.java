@@ -131,7 +131,7 @@ public class MensajeCacheService {
     /**
      * Elimina un mensaje específico del caché
      */
-    public void evictMensaje(Integer mensajeId) {
+    public void evictMensaje(Long mensajeId) {
         Cache cache = cacheManager.getCache("mensajesPorId");
         if (cache != null) {
             cache.evict(mensajeId);
@@ -196,7 +196,7 @@ public class MensajeCacheService {
     /**
      * Sincroniza el caché después de eliminar un mensaje
      */
-    public void sincronizarDespuesDeEliminarMensaje(Integer mensajeId, Integer usuario1Id, Integer usuario2Id) {
+    public void sincronizarDespuesDeEliminarMensaje(Long mensajeId, Integer usuario1Id, Integer usuario2Id) {
         // Eliminar mensaje individual
         evictMensaje(mensajeId);
 

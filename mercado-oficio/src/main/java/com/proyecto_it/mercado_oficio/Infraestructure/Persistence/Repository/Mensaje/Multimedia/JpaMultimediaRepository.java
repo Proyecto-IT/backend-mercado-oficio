@@ -1,4 +1,4 @@
-package com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Repository.Mensaje;
+package com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Repository.Mensaje.Multimedia;
 
 import com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Entity.Mensaje.MultimediaEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,6 +8,5 @@ import java.util.List;
 
 @Repository
 public interface JpaMultimediaRepository extends JpaRepository<MultimediaEntity, Integer> {
-
-    List<MultimediaEntity> findByIdIn(List<Integer> ids);
+    List<MultimediaEntity> findByIds(List<Integer> ids);
 }

@@ -38,10 +38,28 @@ public class MultimediaMapper {
         return MultimediaDTO.builder()
                 .id(domain.getId())
                 .nombre(domain.getNombre())
-                .tipoContenido(domain.getTipoContenido())
+                .TipoArchivo(mapMimeToTipoArchivo(domain.getTipoContenido()))
                 .extension(domain.getExtension())
                 .tamano(domain.getTamano())
-                .urlDescarga("/api/multimedia/" + domain.getId() + "/descargar")
+                .urlDescarga("/api/chat/archivo" + domain.getId())
                 .build();
+    }
+
+    private static MultimediaDTO.TipoArchivo mapMimeToTipoArchivo(String mimeType) {
+        if (mimeType == null) return MultimediaDTO.TipoArchivo.OTRO;
+
+        String tipo = mimeType.toLowerCase();
+
+        if (tipo.startsWith("image/")) {
+            return MultimediaDTO.TipoArchivo.IMAGEN;
+        } else if (tipo.startsWith("video/")) {
+            return MultimediaDTO.TipoArchivo.VIDEO;
+        } else if (tipo.startsWith("audio/")) {
+            return MultimediaDTO.TipoArchivo.AUDIO;
+        } else if (tipo.equals("application/pdf")) {
+            return MultimediaDTO.TipoArchivo.DOCUMENTO;
+        } else {
+            return MultimediaDTO.TipoArchivo.OTRO;
+        }
     }
 }

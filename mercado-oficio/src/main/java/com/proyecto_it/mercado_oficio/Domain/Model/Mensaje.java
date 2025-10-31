@@ -15,7 +15,7 @@ public class Mensaje {
     private Integer receptorId;
     private String contenido;
     private LocalDateTime fechaEnvio;
-    private List<Long> multimediaIds;
+    private List<Integer> multimediaIds;
 
     public void validar(){
         if ( (contenido == null || contenido.isBlank()) && multimediaIds.isEmpty() ) {
@@ -30,7 +30,7 @@ public class Mensaje {
     }
 
     public boolean perteneceAlChat(Integer usuarioId1, Integer usuarioId2) {
-        return (emisorId.equals(usuario1Id) && receptorId.equals(usuario2Id)) ||
-                (emisorId.equals(usuario2Id) && receptorId.equals(usuario1Id));
+        return (emisorId.equals(usuarioId1) && receptorId.equals(usuarioId2)) ||
+                (emisorId.equals(usuarioId2) && receptorId.equals(usuarioId1));
     }
 }

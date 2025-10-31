@@ -1,4 +1,4 @@
-package com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Repository.Mensaje;
+package com.proyecto_it.mercado_oficio.Infraestructure.Persistence.Repository.Mensaje.Multimedia;
 
 import com.proyecto_it.mercado_oficio.Domain.Model.Multimedia;
 import com.proyecto_it.mercado_oficio.Domain.Repository.MultimediaRepository;
@@ -19,7 +19,7 @@ public class MultimediaRepositoryImpl implements MultimediaRepository {
     private final MultimediaMapper multimediaMapper;
 
     @Override
-    public Multimedia save(Multimedia multimedia) {
+    public Multimedia guardar(Multimedia multimedia) {
         MultimediaEntity entity = multimediaMapper.toEntity(multimedia);
         MultimediaEntity savedEntity = jpaMultimediaRepository.save(entity);
         return multimediaMapper.toDomain(savedEntity);
@@ -29,6 +29,14 @@ public class MultimediaRepositoryImpl implements MultimediaRepository {
     public Optional<Multimedia> findById(Integer id) {
         return jpaMultimediaRepository.findById(id)
                 .map(multimediaMapper::toDomain);
+    }
+
+    @Override
+    public List<Multimedia> findByIds(List<Integer> ids) {
+        return jpaMultimediaRepository.findByIds(ids)
+                .stream()
+                .map(multimediaMapper::toDomain)
+                .collect(Collectors.toList());
     }
 
     @Override

@@ -1,53 +1,52 @@
 package com.proyecto_it.mercado_oficio.Web.WebSocket;
 
-import com.proyecto_it.mercado_oficio.Domain.Service.JWT.JwtTokenService;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.stereotype.Component;
+import com.proyecto_it.mercado_oficio.Security.SecurityConfig.JWT.JwtService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.server.ServerHttpRequest;
+import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
-
 import java.util.Map;
 
-@Component
 public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
-    private final JwtTokenService jwtTokenService;
-
-    public JwtHandshakeInterceptor(JwtTokenService jwtTokenService) {
-        this.jwtTokenService = jwtTokenService;
-    }
+    @Autowired
+    private JwtService jwtService;
 
     @Override
-    public boolean beforeHandshake(org.springframework.http.server.ServerHttpRequest request,
-                                   org.springframework.http.server.ServerHttpResponse response,
-                                   WebSocketHandler wsHandler,
-                                   Map<String, Object> attributes) throws Exception {
+    public boolean beforeHandshake(
+            ServerHttpRequest request,
+            ServerHttpResponse response,
+            WebSocketHandler wsHandler,
+            Map<String, Object> attributes) throws Exception {
 
-        // Intentar extraer el token de los parámetros de la query string
-        if (request instanceof org.springframework.http.server.ServletServerHttpRequest) {
-            org.springframework.http.server.ServletServerHttpRequest servletRequest =
-                    (org.springframework.http.server.ServletServerHttpRequest) request;
-
+        if (request instanceof ServletServerHttpRequest servletRequest) {
             String token = servletRequest.getServletRequest().getParameter("token");
+            if (token == null) return false;
 
-            if (token != null && jwtTokenService.validateToken(token)) {
-                String username = jwtTokenService.getUsernameFromToken(token);
+            try {
+                String username = jwtService.extractUsername(token);
+                if (!jwtService.isTokenValid(token, username)) {
+                    return false;
+                }
+
+                // Guardamos el username para usarlo luego en el WebSocketSession
                 attributes.put("username", username);
-                attributes.put("token", token);
                 return true;
+
+            } catch (Exception e) {
+                return false;
             }
         }
-
-        // Si no hay token válido, rechazar el handshake
         return false;
     }
 
     @Override
-    public void afterHandshake(org.springframework.http.server.ServerHttpRequest request,
-                               org.springframework.http.server.ServerHttpResponse response,
-                               WebSocketHandler wsHandler,
-                               Exception exception) {
-        // Lógica post-handshake si es necesaria
+    public void afterHandshake(
+            ServerHttpRequest request,
+            ServerHttpResponse response,
+            WebSocketHandler wsHandler,
+            Exception exception) {
     }
 }
